@@ -125,6 +125,7 @@ public class Plugin : BaseUnityPlugin
 		((Object)val).hideFlags = (HideFlags)61;
 		val.AddComponent<Menu>();
 		DebugBridge.Start();
+		Updater.Start(Config);
 		L.LogInfo((object)string.Format("Ascend {0} loaded - {1} opens the menu.", "2.0", Kit.MenuKey.Value));
 	}
 

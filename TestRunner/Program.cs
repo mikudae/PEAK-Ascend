@@ -725,6 +725,810 @@ internal class Program
         // Clean up simulated file
         try { File.Delete(masterTempFile); } catch {}
 
+        // ==============================================================================
+        // 19. Auto-Updater Verification (Summit.Updater)
+        // ==============================================================================
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("\n>>> Testing Auto-Updater (Summit.Updater)...");
+        Console.ResetColor();
+
+        Type slaveUpdaterType = slaveAsm.GetType("Summit.Updater");
+        Type masterUpdaterType = masterAsm.GetType("Summit.Updater");
+        AssertTrue(slaveUpdaterType != null, "Updater type exists in Summit_Slave.dll");
+        AssertTrue(masterUpdaterType != null, "Updater type exists in Summit_Master.dll");
+
+        // Role check
+        MethodInfo slaveIsSlaveMethod = slaveUpdaterType.GetMethod("IsSlaveRole", BindingFlags.Public | BindingFlags.Static);
+        MethodInfo masterIsSlaveMethod = masterUpdaterType.GetMethod("IsSlaveRole", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue((bool)slaveIsSlaveMethod.Invoke(null, null), "Updater.IsSlaveRole() returns true on Slave mod");
+        AssertEqual((bool)masterIsSlaveMethod.Invoke(null, null), false, "Updater.IsSlaveRole() returns false on Master mod");
+
+        // Tag & Version Comparison Tests
+        MethodInfo compareVersionsMethod = slaveUpdaterType.GetMethod("CompareVersions", BindingFlags.Public | BindingFlags.Static);
+        MethodInfo isNewerMethod = slaveUpdaterType.GetMethod("IsNewerVersion", BindingFlags.Public | BindingFlags.Static);
+
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "v1.2.0", "v1.1.1" }) > 0, "CompareVersions: v1.2.0 > v1.1.1");
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "v1.1.1", "v1.2.0" }) < 0, "CompareVersions: v1.1.1 < v1.2.0");
+        AssertEqual((int)compareVersionsMethod.Invoke(null, new object[] { "v2.0", "2.0" }), 0, "CompareVersions: v2.0 == 2.0");
+        AssertEqual((int)compareVersionsMethod.Invoke(null, new object[] { "v2.0.0", "2.0" }), 0, "CompareVersions: v2.0.0 == 2.0");
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "1.10.0", "1.9.0" }) > 0, "CompareVersions: 1.10.0 > 1.9.0 (semver numeric)");
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "v2.1", "2.0" }) > 0, "CompareVersions: v2.1 > 2.0");
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "v2.0.1", "2.0" }) > 0, "CompareVersions: v2.0.1 > 2.0");
+        AssertEqual((int)compareVersionsMethod.Invoke(null, new object[] { "v1.2.0-beta.1", "1.2.0" }), 0, "CompareVersions: v1.2.0-beta.1 == 1.2.0 (ignores prerelease suffix)");
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "", "2.0" }) < 0, "CompareVersions: empty < 2.0");
+        AssertEqual((int)compareVersionsMethod.Invoke(null, new object[] { null, "" }), 0, "CompareVersions: null == empty");
+
+        AssertTrue((bool)isNewerMethod.Invoke(null, new object[] { "v1.1.1", "v1.2.0" }), "IsNewerVersion: v1.2.0 is newer than v1.1.1");
+        AssertEqual((bool)isNewerMethod.Invoke(null, new object[] { "v1.2.0", "v1.1.1" }), false, "IsNewerVersion: v1.1.1 is NOT newer than v1.2.0");
+        AssertEqual((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "v2.0" }), false, "IsNewerVersion: v2.0 is NOT newer than 2.0 (matching release)");
+        AssertEqual((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "v2.0.0" }), false, "IsNewerVersion: v2.0.0 is NOT newer than 2.0 (matching release)");
+        AssertTrue((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "v2.0.1" }), "IsNewerVersion: v2.0.1 is newer than 2.0 (semver patch)");
+        AssertTrue((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "v2.1.0" }), "IsNewerVersion: v2.1.0 is newer than 2.0 (semver minor)");
+        AssertTrue((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "v3.0.0" }), "IsNewerVersion: v3.0.0 is newer than 2.0 (semver major)");
+        AssertTrue((bool)isNewerMethod.Invoke(null, new object[] { "1.9.0", "v1.10.0" }), "IsNewerVersion: v1.10.0 is newer than 1.9.0 (semver numeric 10 > 9)");
+        AssertEqual((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "" }), false, "IsNewerVersion: empty string returns false");
+        AssertEqual((bool)isNewerMethod.Invoke(null, new object[] { "2.0", null }), false, "IsNewerVersion: null returns false");
+        AssertEqual((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "invalid-tag" }), false, "IsNewerVersion: non-numeric string returns false");
+
+        // ParseReleaseTag Tests
+        MethodInfo parseTagMethod = slaveUpdaterType.GetMethod("ParseReleaseTag", BindingFlags.Public | BindingFlags.Static);
+        string sampleJson = "{\"tag_name\":\"v2.2.0\",\"name\":\"Ascend v2.2.0\",\"assets\":[]}";
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { sampleJson }), "v2.2.0", "ParseReleaseTag extracts tag name cleanly");
+        string sampleJsonEscaped = "{\"tag_name\":\"v2.2.0\\/hotfix\",\"name\":\"Hotfix\"}";
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { sampleJsonEscaped }), "v2.2.0/hotfix", "ParseReleaseTag unescapes forward slashes");
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { "{\"name\":\"No Tag\"}" }), null, "ParseReleaseTag returns null if tag_name missing");
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { "" }), null, "ParseReleaseTag returns null on empty json");
+
+        // Asset Matcher Tests
+        MethodInfo resolveUrlMethod = slaveUpdaterType.GetMethod("ResolveDownloadUrl", BindingFlags.Public | BindingFlags.Static);
+        
+        // Asset Matcher Case 1: Both Summit_Master.dll and Summit_Slave.dll present -> resolves to Summit_Slave.dll
+        string jsonDual = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit_Master.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Master.dll\"},{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Slave.dll\"}]}";
+        string dualResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonDual, null });
+        AssertEqual(dualResolved, "https://github.com/releases/Summit_Slave.dll", "Asset Matcher: Filters for Summit_Slave.dll when both Master and Slave present");
+
+        // Asset Matcher Case 2: Only Summit.dll present -> resolves to Summit.dll
+        string jsonSingle = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit.dll\",\"browser_download_url\":\"https://github.com/releases/Summit.dll\"}]}";
+        string singleResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonSingle, null });
+        AssertEqual(singleResolved, "https://github.com/releases/Summit.dll", "Asset Matcher: Falls back to Summit.dll when only Summit.dll present");
+
+        // Asset Matcher Case 3: Both Summit.dll and Summit_Slave.dll present -> prioritizes Summit_Slave.dll
+        string jsonBoth = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit.dll\",\"browser_download_url\":\"https://github.com/releases/Summit.dll\"},{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Slave.dll\"}]}";
+        string bothResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonBoth, null });
+        AssertEqual(bothResolved, "https://github.com/releases/Summit_Slave.dll", "Asset Matcher: Prioritizes Summit_Slave.dll over Summit.dll");
+
+        // Asset Matcher Case 4: Only Summit_Master.dll present -> returns null (never installs master onto slave)
+        string jsonMasterOnly = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit_Master.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Master.dll\"}]}";
+        string masterOnlyResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonMasterOnly, null });
+        AssertEqual(masterOnlyResolved, null, "Asset Matcher: Returns null when only Summit_Master.dll is present");
+
+        // Asset Matcher Case 5: Escaped slashes in browser_download_url
+        string jsonEscapedUrl = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"https:\\/\\/github.com\\/download\\/Summit_Slave.dll\"}]}";
+        string escapedResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonEscapedUrl, null });
+        AssertEqual(escapedResolved, "https://github.com/download/Summit_Slave.dll", "Asset Matcher: Unescapes forward slashes in download URL");
+
+        // Asset Matcher Case 6: Empty assets array -> returns null
+        string jsonEmptyAssets = "{\"tag_name\":\"v2.1.0\",\"assets\":[]}";
+        string emptyAssetsResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonEmptyAssets, null });
+        AssertEqual(emptyAssetsResolved, null, "Asset Matcher: Returns null for empty assets array");
+
+        // Asset Matcher Case 7: Custom candidate names
+        string jsonCustom = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"CustomMod.dll\",\"browser_download_url\":\"https://github.com/download/CustomMod.dll\"}]}";
+        string customResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonCustom, new string[] { "CustomMod.dll" } });
+        AssertEqual(customResolved, "https://github.com/download/CustomMod.dll", "Asset Matcher: Supports custom candidate names");
+
+        // File Replacement Simulation & Startup Cleanup Tests
+        MethodInfo swapMethod = slaveUpdaterType.GetMethod("PerformFileSwap", BindingFlags.Public | BindingFlags.Static);
+        MethodInfo cleanupMethod = slaveUpdaterType.GetMethod("CleanupOldFiles", BindingFlags.Public | BindingFlags.Static);
+
+        string tempTestDir = Path.Combine(Path.GetTempPath(), "summit_updater_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempTestDir);
+
+        string simActiveDll = Path.Combine(tempTestDir, "Summit.dll");
+        string simDownload = Path.Combine(tempTestDir, "Summit.dll.download");
+        string simOld = Path.Combine(tempTestDir, "Summit.dll.old");
+
+        File.WriteAllText(simActiveDll, "ACTIVE_MOD_V2.0");
+        File.WriteAllText(simDownload, "DOWNLOADED_MOD_V2.1");
+
+        // Execute 3-step swap simulation
+        bool swapResult = (bool)swapMethod.Invoke(null, new object[] { simActiveDll, simDownload });
+        AssertTrue(swapResult, "PerformFileSwap returns true on successful swap");
+        AssertEqual(File.Exists(simDownload), false, "PerformFileSwap: .download file no longer exists");
+        AssertTrue(File.Exists(simOld), "PerformFileSwap: active was renamed to .old");
+        AssertEqual(File.ReadAllText(simOld), "ACTIVE_MOD_V2.0", "PerformFileSwap: .old contains previous active content");
+        AssertTrue(File.Exists(simActiveDll), "PerformFileSwap: new binary moved to active target Summit.dll");
+        AssertEqual(File.ReadAllText(simActiveDll), "DOWNLOADED_MOD_V2.1", "PerformFileSwap: active Summit.dll contains new binary");
+
+        // Startup Cleanup Simulation
+        File.WriteAllText(simOld, "ORPHANED_OLD_FILE");
+        File.WriteAllText(simDownload, "ORPHANED_DOWNLOAD_FILE");
+        string simExtraOld = Path.Combine(tempTestDir, "Summit.20261019_120000.old");
+        File.WriteAllText(simExtraOld, "EXTRA_OLD_FILE");
+
+        cleanupMethod.Invoke(null, new object[] { simActiveDll });
+
+        AssertEqual(File.Exists(simOld), false, "CleanupOldFiles: orphaned Summit.dll.old was removed");
+        AssertEqual(File.Exists(simDownload), false, "CleanupOldFiles: orphaned Summit.dll.download was removed");
+        AssertEqual(File.Exists(simExtraOld), false, "CleanupOldFiles: wildcard Summit*.old was removed");
+        AssertTrue(File.Exists(simActiveDll), "CleanupOldFiles: active Summit.dll is preserved untouched");
+        AssertEqual(File.ReadAllText(simActiveDll), "DOWNLOADED_MOD_V2.1", "CleanupOldFiles: active Summit.dll content unchanged");
+
+        // Configuration Tests
+        MethodInfo bindConfigMethod = slaveUpdaterType.GetMethod("Bind", BindingFlags.Public | BindingFlags.Static);
+        PropertyInfo repoProp = slaveUpdaterType.GetProperty("GitHubRepo", BindingFlags.Public | BindingFlags.Static);
+        MethodInfo getRepoMethod = slaveUpdaterType.GetMethod("GetRepoTarget", BindingFlags.Public | BindingFlags.Static);
+
+        string testCfgPath = Path.Combine(tempTestDir, "test_config.cfg");
+        var cfg = new BepInEx.Configuration.ConfigFile(testCfgPath, true);
+        bindConfigMethod.Invoke(null, new object[] { cfg });
+
+        var repoEntry = (BepInEx.Configuration.ConfigEntry<string>)repoProp.GetValue(null);
+        AssertTrue(repoEntry != null, "GitHubRepo ConfigEntry exists after Bind");
+        AssertEqual(repoEntry.Value, "mikudae/PEAK-Ascend", "GitHubRepo default value is 'mikudae/PEAK-Ascend'");
+        AssertEqual((string)getRepoMethod.Invoke(null, null), "mikudae/PEAK-Ascend", "GetRepoTarget() returns default repo");
+
+        // Test override
+        repoEntry.Value = "testowner/testmod";
+        cfg.Save();
+        AssertEqual(repoEntry.Value, "testowner/testmod", "GitHubRepo can be overridden in-memory");
+        AssertEqual((string)getRepoMethod.Invoke(null, null), "testowner/testmod", "GetRepoTarget() returns overridden repo");
+
+        // Reload from disk to verify persistence
+        var reloadedCfg = new BepInEx.Configuration.ConfigFile(testCfgPath, true);
+        bindConfigMethod.Invoke(null, new object[] { reloadedCfg });
+        var reloadedRepoEntry = (BepInEx.Configuration.ConfigEntry<string>)repoProp.GetValue(null);
+        AssertEqual(reloadedRepoEntry.Value, "testowner/testmod", "GitHubRepo persists across ConfigFile reloads");
+
+        // End-to-End Update Simulation & Silent Process Termination Test
+        MethodInfo checkApplyMethod = slaveUpdaterType.GetMethod("CheckAndApplyUpdate", BindingFlags.Public | BindingFlags.Static);
+        PropertyInfo termProp = slaveUpdaterType.GetProperty("TerminateProcess", BindingFlags.Public | BindingFlags.Static);
+
+        Action originalTerminate = (Action)termProp.GetValue(null);
+        bool processTerminationTriggered = false;
+        termProp.SetValue(null, (Action)(() =>
+        {
+            processTerminationTriggered = true;
+        }));
+
+        int mockPort = 18096;
+        var mockServer = new System.Net.HttpListener();
+        mockServer.Prefixes.Add($"http://127.0.0.1:{mockPort}/");
+        mockServer.Start();
+
+        bool mockServerRunning = true;
+        Thread mockServerThread = new Thread(() =>
+        {
+            while (mockServerRunning)
+            {
+                try
+                {
+                    var ctx = mockServer.GetContext();
+                    string path = ctx.Request.Url.AbsolutePath;
+                    if (path.Contains("/releases/latest"))
+                    {
+                        string respJson = "{\"tag_name\":\"v9.9.9\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"http://127.0.0.1:" + mockPort + "/download/Summit_Slave.dll\"}]}";
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes(respJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = buf.Length;
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/download/Summit_Slave.dll"))
+                    {
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes("NEW_BINARY_V9.9.9_CONTENT");
+                        ctx.Response.ContentType = "application/octet-stream";
+                        ctx.Response.ContentLength64 = buf.Length;
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else
+                    {
+                        ctx.Response.StatusCode = 404;
+                        ctx.Response.Close();
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        });
+        mockServerThread.IsBackground = true;
+        mockServerThread.Start();
+
+        string e2eActiveDll = Path.Combine(tempTestDir, "E2E_Summit.dll");
+        File.WriteAllText(e2eActiveDll, "OLD_BINARY_V2.0");
+
+        bool updateApplied = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{mockPort}/releases/latest", e2eActiveDll, null });
+
+        mockServerRunning = false;
+        mockServer.Stop();
+        mockServer.Close();
+        mockServerThread.Join(500);
+
+        AssertTrue(updateApplied, "CheckAndApplyUpdate applied new release v9.9.9");
+        AssertTrue(processTerminationTriggered, "CheckAndApplyUpdate triggered silent process termination");
+        AssertTrue(File.Exists(e2eActiveDll), "E2E target active DLL exists");
+        AssertEqual(File.ReadAllText(e2eActiveDll), "NEW_BINARY_V9.9.9_CONTENT", "E2E target active DLL replaced with downloaded binary");
+        AssertTrue(File.Exists(e2eActiveDll + ".old"), "E2E active DLL was renamed to .old");
+        AssertEqual(File.ReadAllText(e2eActiveDll + ".old"), "OLD_BINARY_V2.0", "E2E .old contains previous binary");
+        AssertEqual(File.Exists(e2eActiveDll + ".download"), false, "E2E .download temporary file was moved");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Repository Normalization
+        // ------------------------------------------------------------------------------
+        MethodInfo normalizeRepoMethod = slaveUpdaterType.GetMethod("NormalizeRepository", BindingFlags.Public | BindingFlags.Static);
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "https://github.com/mikudae/PEAK-Ascend" }), "mikudae/PEAK-Ascend", "NormalizeRepository: https://github.com/owner/repo");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "https://github.com/mikudae/PEAK-Ascend/" }), "mikudae/PEAK-Ascend", "NormalizeRepository: trailing slash stripped");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "https://github.com/mikudae/PEAK-Ascend.git" }), "mikudae/PEAK-Ascend", "NormalizeRepository: .git stripped");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "github.com/mikudae/PEAK-Ascend" }), "mikudae/PEAK-Ascend", "NormalizeRepository: github.com prefix stripped");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "  mikudae/PEAK-Ascend  " }), "mikudae/PEAK-Ascend", "NormalizeRepository: whitespace trimmed");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "http://127.0.0.1:18096/releases/latest" }), "http://127.0.0.1:18096/releases/latest", "NormalizeRepository: custom mock URL preserved");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Tag Prefixes (release-v2.1.0, Summit-2.1.0)
+        // ------------------------------------------------------------------------------
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "release-v2.1.0", "2.0" }) > 0, "CompareVersions: release-v2.1.0 > 2.0");
+        AssertTrue((int)compareVersionsMethod.Invoke(null, new object[] { "Summit-2.1.0", "2.0" }) > 0, "CompareVersions: Summit-2.1.0 > 2.0");
+        AssertTrue((bool)isNewerMethod.Invoke(null, new object[] { "2.0", "release-v2.1.0" }), "IsNewerVersion: release-v2.1.0 is newer than 2.0");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Release Body containing 'assets' keyword & Malformed JSON
+        // ------------------------------------------------------------------------------
+        string jsonWithBodyAssets = "{\"tag_name\":\"v2.2.0\",\"body\":\"Download the assets here: [link](https://foo.bar)\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"https://github.com/download/Summit_Slave.dll\"}]}";
+        string resolvedWithBodyAssets = (string)resolveUrlMethod.Invoke(null, new object[] { jsonWithBodyAssets, null });
+        AssertEqual(resolvedWithBodyAssets, "https://github.com/download/Summit_Slave.dll", "Asset Matcher: Correctly extracts asset when body text contains 'assets'");
+
+        MethodInfo parseAssetsMethod = slaveUpdaterType.GetMethod("ParseAssets", BindingFlags.Public | BindingFlags.Static);
+        var malformedAssets = parseAssetsMethod.Invoke(null, new object[] { "{\"assets\": [{\"name\": \"" });
+        AssertTrue(malformedAssets != null, "ParseAssets: handles malformed JSON without throwing ArgumentOutOfRangeException");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Binary Validation (IsValidDownloadedBinary)
+        // ------------------------------------------------------------------------------
+        MethodInfo isValidBinaryMethod = slaveUpdaterType.GetMethod("IsValidDownloadedBinary", BindingFlags.Public | BindingFlags.Static);
+        string emptyFilePath = Path.Combine(tempTestDir, "empty.dll");
+        File.WriteAllBytes(emptyFilePath, new byte[0]);
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { emptyFilePath }), false, "IsValidDownloadedBinary: 0-byte file rejected");
+
+        string htmlFilePath = Path.Combine(tempTestDir, "error.html");
+        File.WriteAllText(htmlFilePath, "<!DOCTYPE html><html><body>Error 404</body></html>");
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { htmlFilePath }), false, "IsValidDownloadedBinary: HTML error page rejected");
+
+        string jsonErrPath = Path.Combine(tempTestDir, "error.json");
+        File.WriteAllText(jsonErrPath, "{\"message\": \"Not Found\", \"documentation_url\": \"...\"}");
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { jsonErrPath }), false, "IsValidDownloadedBinary: JSON error payload rejected");
+
+        string validBinPath = Path.Combine(tempTestDir, "valid.dll");
+        File.WriteAllText(validBinPath, "NEW_VALID_BINARY_BYTES");
+        AssertTrue((bool)isValidBinaryMethod.Invoke(null, new object[] { validBinPath }), "IsValidDownloadedBinary: Valid content accepted");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: 0-byte Download Swap Rejection
+        // ------------------------------------------------------------------------------
+        string activeCorruptTest = Path.Combine(tempTestDir, "CorruptTest_Summit.dll");
+        File.WriteAllText(activeCorruptTest, "ORIGINAL_ACTIVE_BINARY");
+        bool corruptSwapThrew = false;
+        try
+        {
+            swapMethod.Invoke(null, new object[] { activeCorruptTest, emptyFilePath });
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException is InvalidDataException)
+        {
+            corruptSwapThrew = true;
+        }
+        AssertTrue(corruptSwapThrew, "PerformFileSwap: Throws InvalidDataException on 0-byte download");
+        AssertEqual(File.ReadAllText(activeCorruptTest), "ORIGINAL_ACTIVE_BINARY", "PerformFileSwap: Active DLL untouched when download is 0-byte");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Windows NTFS Open-File Handle Simulation
+        // ------------------------------------------------------------------------------
+        string lockedActiveDll = Path.Combine(tempTestDir, "Locked_Summit.dll");
+        string lockedDownload = Path.Combine(tempTestDir, "Locked_Summit.dll.download");
+        File.WriteAllText(lockedActiveDll, "ORIGINAL_LOCKED_CONTENT");
+        File.WriteAllText(lockedDownload, "NEW_LOCKED_CONTENT");
+
+        // Hold file handle open with FileShare.Read | FileShare.Delete (mimicking Windows PE loader)
+        using (FileStream lockedFs = new FileStream(lockedActiveDll, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+        {
+            bool lockedSwapResult = (bool)swapMethod.Invoke(null, new object[] { lockedActiveDll, lockedDownload });
+            AssertTrue(lockedSwapResult, "PerformFileSwap: Swap succeeded while active DLL has open FileShare.Delete handle");
+            AssertTrue(File.Exists(lockedActiveDll), "PerformFileSwap: Active DLL exists after locked swap");
+            AssertEqual(File.ReadAllText(lockedActiveDll), "NEW_LOCKED_CONTENT", "PerformFileSwap: Active DLL replaced with new content while old handle was open");
+            AssertTrue(File.Exists(lockedActiveDll + ".old"), "PerformFileSwap: .old exists while file handle was open");
+        }
+
+        // Now file handle is closed, verify CleanupOldFiles removes the .old file
+        cleanupMethod.Invoke(null, new object[] { lockedActiveDll });
+        AssertEqual(File.Exists(lockedActiveDll + ".old"), false, "CleanupOldFiles: Removes .old file after handle closed");
+        AssertEqual(File.ReadAllText(lockedActiveDll), "NEW_LOCKED_CONTENT", "CleanupOldFiles: Active DLL content preserved after cleanup");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Collision Handling on .old file
+        // ------------------------------------------------------------------------------
+        string collideActiveDll = Path.Combine(tempTestDir, "Collide_Summit.dll");
+        string collideDownload = Path.Combine(tempTestDir, "Collide_Summit.dll.download");
+        string collideOld = collideActiveDll + ".old";
+        File.WriteAllText(collideActiveDll, "ACTIVE_COLLIDE");
+        File.WriteAllText(collideDownload, "DOWNLOAD_COLLIDE");
+        File.WriteAllText(collideOld, "EXISTING_LOCKED_OLD");
+
+        using (FileStream lockedOldFs = new FileStream(collideOld, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+        {
+            bool collideSwapResult = (bool)swapMethod.Invoke(null, new object[] { collideActiveDll, collideDownload });
+            AssertTrue(collideSwapResult, "PerformFileSwap: Succeeded even when existing .old cannot be deleted");
+            AssertEqual(File.ReadAllText(collideActiveDll), "DOWNLOAD_COLLIDE", "PerformFileSwap: Active DLL updated under .old collision");
+        }
+        cleanupMethod.Invoke(null, new object[] { collideActiveDll });
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: HTTP 403, 404, and HTML download response handling
+        // ------------------------------------------------------------------------------
+        int errPort = 18097;
+        var errServer = new System.Net.HttpListener();
+        errServer.Prefixes.Add($"http://127.0.0.1:{errPort}/");
+        errServer.Start();
+
+        bool errServerRunning = true;
+        Thread errServerThread = new Thread(() =>
+        {
+            while (errServerRunning)
+            {
+                try
+                {
+                    var ctx = errServer.GetContext();
+                    string path = ctx.Request.Url.AbsolutePath;
+                    if (path.Contains("/403_rate_limit"))
+                    {
+                        ctx.Response.StatusCode = 403;
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes("{\"message\":\"API rate limit exceeded\"}");
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/404_not_found"))
+                    {
+                        ctx.Response.StatusCode = 404;
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes("{\"message\":\"Not Found\"}");
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/html_release"))
+                    {
+                        string respJson = "{\"tag_name\":\"v9.9.9\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"http://127.0.0.1:" + errPort + "/download/html_error\"}]}";
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes(respJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/download/html_error"))
+                    {
+                        ctx.Response.StatusCode = 200;
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes("<!DOCTYPE html><html><body>Error</body></html>");
+                        ctx.Response.ContentType = "text/html";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else
+                    {
+                        ctx.Response.StatusCode = 404;
+                        ctx.Response.Close();
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        });
+        errServerThread.IsBackground = true;
+        errServerThread.Start();
+
+        string errActiveDll = Path.Combine(tempTestDir, "Err_Summit.dll");
+        File.WriteAllText(errActiveDll, "ORIGINAL_ERR_ACTIVE");
+
+        bool termCalled = false;
+        termProp.SetValue(null, (Action)(() => { termCalled = true; }));
+
+        // Test 403 Forbidden
+        bool res403 = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{errPort}/403_rate_limit", errActiveDll, null });
+        AssertEqual(res403, false, "CheckAndApplyUpdate: Returns false on HTTP 403 Rate Limit");
+        AssertEqual(termCalled, false, "CheckAndApplyUpdate: Terminate not called on HTTP 403");
+        AssertEqual(File.ReadAllText(errActiveDll), "ORIGINAL_ERR_ACTIVE", "CheckAndApplyUpdate: Active DLL preserved on HTTP 403");
+
+        // Test 404 Not Found
+        bool res404 = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{errPort}/404_not_found", errActiveDll, null });
+        AssertEqual(res404, false, "CheckAndApplyUpdate: Returns false on HTTP 404 Not Found");
+        AssertEqual(termCalled, false, "CheckAndApplyUpdate: Terminate not called on HTTP 404");
+        AssertEqual(File.ReadAllText(errActiveDll), "ORIGINAL_ERR_ACTIVE", "CheckAndApplyUpdate: Active DLL preserved on HTTP 404");
+
+        // Test HTML payload on download endpoint
+        bool resHtml = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{errPort}/html_release", errActiveDll, null });
+        AssertEqual(resHtml, false, "CheckAndApplyUpdate: Returns false when download payload is HTML error");
+        AssertEqual(termCalled, false, "CheckAndApplyUpdate: Terminate not called on HTML download error");
+        AssertEqual(File.ReadAllText(errActiveDll), "ORIGINAL_ERR_ACTIVE", "CheckAndApplyUpdate: Active DLL preserved when download payload is HTML");
+
+        errServerRunning = false;
+        errServer.Stop();
+        errServer.Close();
+        errServerThread.Join(500);
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: False Tag Matching from Properties Preceding tag_name
+        // ------------------------------------------------------------------------------
+        string jsonPrecedingTag = "{\"name\":\"Release with \\\"tag_name\\\": \\\"v0.0.1\\\" in title\",\"tag_name\":\"v3.5.0\",\"assets\":[]}";
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { jsonPrecedingTag }), "v3.5.0", "ParseReleaseTag ignores embedded 'tag_name' in preceding 'name' field");
+
+        string jsonBodyBlock = "{\"body\":\"```json\\n{\\\"tag_name\\\": \\\"v0.1.0\\\"}\\n```\",\"tag_name\":\"v4.0.0\"}";
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { jsonBodyBlock }), "v4.0.0", "ParseReleaseTag ignores fake tag_name inside markdown code block");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: S3 XML and Plain-text Error Payloads (IsValidDownloadedBinary)
+        // ------------------------------------------------------------------------------
+        string s3XmlPath1 = Path.Combine(tempTestDir, "s3_err1.xml");
+        File.WriteAllText(s3XmlPath1, "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>NoSuchKey</Code></Error>");
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { s3XmlPath1 }), false, "IsValidDownloadedBinary: S3 <?xml error rejected");
+
+        string s3XmlPath2 = Path.Combine(tempTestDir, "s3_err2.xml");
+        File.WriteAllText(s3XmlPath2, "<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>");
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { s3XmlPath2 }), false, "IsValidDownloadedBinary: S3 <Error> payload rejected");
+
+        string plainTextErrPath = Path.Combine(tempTestDir, "gateway_error.txt");
+        File.WriteAllText(plainTextErrPath, "502 Bad Gateway: Host unreachable");
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { plainTextErrPath }), false, "IsValidDownloadedBinary: 502 Bad Gateway text rejected");
+
+        string peBinaryPath = Path.Combine(tempTestDir, "real_pe.dll");
+        byte[] peBytes = new byte[512];
+        peBytes[0] = 0x4D; // 'M'
+        peBytes[1] = 0x5A; // 'Z'
+        File.WriteAllBytes(peBinaryPath, peBytes);
+        AssertTrue((bool)isValidBinaryMethod.Invoke(null, new object[] { peBinaryPath }), "IsValidDownloadedBinary: Real PE binary with MZ header accepted");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: SSH URL in NormalizeRepository
+        // ------------------------------------------------------------------------------
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "git@github.com:owner/repo.git" }), "owner/repo", "NormalizeRepository: git@github.com: SSH URL normalized");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: GitHub HTTP 302 and 307 Download Redirections (S3 / CDN Simulation)
+        // ------------------------------------------------------------------------------
+        int redirPort = 18098;
+        var redirServer = new System.Net.HttpListener();
+        redirServer.Prefixes.Add($"http://127.0.0.1:{redirPort}/");
+        redirServer.Start();
+
+        bool redirServerRunning = true;
+        Thread redirServerThread = new Thread(() =>
+        {
+            while (redirServerRunning)
+            {
+                try
+                {
+                    var ctx = redirServer.GetContext();
+                    string path = ctx.Request.Url.AbsolutePath;
+
+                    if (path.Contains("/releases/latest_redirect_abs"))
+                    {
+                        string respJson = "{\"tag_name\":\"v10.0.0\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"http://127.0.0.1:" + redirPort + "/redirect_step1\"}]}";
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes(respJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/redirect_step1"))
+                    {
+                        // Simulate GitHub 302 Found redirect to S3 / CDN with absolute URL
+                        ctx.Response.StatusCode = 302;
+                        ctx.Response.Headers["Location"] = "http://127.0.0.1:" + redirPort + "/redirect_final_s3";
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/redirect_final_s3"))
+                    {
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes("NEW_BINARY_VIA_302_REDIRECT");
+                        ctx.Response.StatusCode = 200;
+                        ctx.Response.ContentType = "application/octet-stream";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/releases/latest_redirect_rel"))
+                    {
+                        string respJson = "{\"tag_name\":\"v10.0.1\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"http://127.0.0.1:" + redirPort + "/redirect_rel_step\"}]}";
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes(respJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/redirect_rel_step"))
+                    {
+                        // Simulate 307 Temporary Redirect with relative location
+                        ctx.Response.StatusCode = 307;
+                        ctx.Response.Headers["Location"] = "/redirect_rel_target";
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/redirect_rel_target"))
+                    {
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes("NEW_BINARY_VIA_307_RELATIVE_REDIRECT");
+                        ctx.Response.StatusCode = 200;
+                        ctx.Response.ContentType = "application/octet-stream";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else
+                    {
+                        ctx.Response.StatusCode = 404;
+                        ctx.Response.Close();
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        });
+        redirServerThread.IsBackground = true;
+        redirServerThread.Start();
+
+        string redirActiveDll = Path.Combine(tempTestDir, "Redir_Summit.dll");
+        File.WriteAllText(redirActiveDll, "ACTIVE_PRE_REDIR_V2.0");
+
+        bool redirTermCalled = false;
+        termProp.SetValue(null, (Action)(() => { redirTermCalled = true; }));
+
+        // Test 302 Absolute Redirect
+        bool redirApplied1 = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{redirPort}/releases/latest_redirect_abs", redirActiveDll, null });
+        AssertTrue(redirApplied1, "CheckAndApplyUpdate successfully follows HTTP 302 redirect to final binary");
+        AssertTrue(redirTermCalled, "CheckAndApplyUpdate terminates process on 302 redirect update");
+        AssertEqual(File.ReadAllText(redirActiveDll), "NEW_BINARY_VIA_302_REDIRECT", "Active DLL updated with content from 302 redirect target");
+
+        // Test 307 Relative Redirect
+        redirTermCalled = false;
+        bool redirApplied2 = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{redirPort}/releases/latest_redirect_rel", redirActiveDll, null });
+        AssertTrue(redirApplied2, "CheckAndApplyUpdate successfully follows HTTP 307 relative redirect");
+        AssertTrue(redirTermCalled, "CheckAndApplyUpdate terminates process on 307 redirect update");
+        AssertEqual(File.ReadAllText(redirActiveDll), "NEW_BINARY_VIA_307_RELATIVE_REDIRECT", "Active DLL updated with content from 307 relative redirect target");
+
+        redirServerRunning = false;
+        redirServer.Stop();
+        redirServer.Close();
+        redirServerThread.Join(500);
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Concurrency Reentrancy Guard Stress Test
+        // ------------------------------------------------------------------------------
+        int concurrentPort = 18099;
+        var concurrentServer = new System.Net.HttpListener();
+        concurrentServer.Prefixes.Add($"http://127.0.0.1:{concurrentPort}/");
+        concurrentServer.Start();
+
+        bool concurrentServerRunning = true;
+        Thread concurrentServerThread = new Thread(() =>
+        {
+            while (concurrentServerRunning)
+            {
+                try
+                {
+                    var ctx = concurrentServer.GetContext();
+                    string path = ctx.Request.Url.AbsolutePath;
+                    if (path.Contains("/releases/latest"))
+                    {
+                        string respJson = "{\"tag_name\":\"v11.0.0\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"http://127.0.0.1:" + concurrentPort + "/download/binary\"}]}";
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes(respJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/download/binary"))
+                    {
+                        Thread.Sleep(50);
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes("CONCURRENT_TEST_BINARY");
+                        ctx.Response.ContentType = "application/octet-stream";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else
+                    {
+                        ctx.Response.StatusCode = 404;
+                        ctx.Response.Close();
+                    }
+                }
+                catch { break; }
+            }
+        });
+        concurrentServerThread.IsBackground = true;
+        concurrentServerThread.Start();
+
+        string concurrentActiveDll = Path.Combine(tempTestDir, "Concurrent_Summit.dll");
+        File.WriteAllText(concurrentActiveDll, "ORIGINAL_CONCURRENT_ACTIVE");
+
+        termProp.SetValue(null, (Action)(() => { }));
+
+        int completedSuccessCount = 0;
+        int threadsCount = 5;
+        Thread[] workers = new Thread[threadsCount];
+        for (int i = 0; i < threadsCount; i++)
+        {
+            workers[i] = new Thread(() =>
+            {
+                try
+                {
+                    bool ok = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{concurrentPort}/releases/latest", concurrentActiveDll, null });
+                    if (ok)
+                    {
+                        Interlocked.Increment(ref completedSuccessCount);
+                    }
+                }
+                catch { }
+            });
+        }
+
+        for (int i = 0; i < threadsCount; i++) workers[i].Start();
+        for (int i = 0; i < threadsCount; i++) workers[i].Join();
+
+        AssertTrue(completedSuccessCount >= 1, "Concurrency test: At least one thread completed the update successfully");
+        AssertTrue(completedSuccessCount < threadsCount, "Concurrency test: Reentrancy guard prevented concurrent race collisions");
+        AssertEqual(File.ReadAllText(concurrentActiveDll), "CONCURRENT_TEST_BINARY", "Concurrency test: Active DLL consistently updated without corruption");
+
+        concurrentServerRunning = false;
+        concurrentServer.Stop();
+        concurrentServer.Close();
+        concurrentServerThread.Join(500);
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests: Cross-Name Startup Cleanup (Summit_Slave.dll cleans Summit.dll.old)
+        // ------------------------------------------------------------------------------
+        string crossActiveDll = Path.Combine(tempTestDir, "Summit_Slave.dll");
+        File.WriteAllText(crossActiveDll, "ACTIVE_SLAVE_DLL");
+        string orphanedSummitOld = Path.Combine(tempTestDir, "Summit.dll.old");
+        string orphanedSummitDownload = Path.Combine(tempTestDir, "Summit.dll.download");
+        File.WriteAllText(orphanedSummitOld, "ORPHANED_SUMMIT_OLD");
+        File.WriteAllText(orphanedSummitDownload, "ORPHANED_SUMMIT_DOWNLOAD");
+
+        cleanupMethod.Invoke(null, new object[] { crossActiveDll });
+        AssertEqual(File.Exists(orphanedSummitOld), false, "Cross-Name Cleanup: Summit.dll.old removed when active is Summit_Slave.dll");
+        AssertEqual(File.Exists(orphanedSummitDownload), false, "Cross-Name Cleanup: Summit.dll.download removed when active is Summit_Slave.dll");
+        AssertTrue(File.Exists(crossActiveDll), "Cross-Name Cleanup: Active Summit_Slave.dll preserved");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests (Round 3): Nested Property Rejection
+        // ------------------------------------------------------------------------------
+        string jsonNestedObjectTag = "{\"name\":\"Release\",\"author\":{\"login\":\"octocat\",\"tag_name\":\"v9.9.9\"}}";
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { jsonNestedObjectTag }), null, "ParseReleaseTag ignores tag_name inside nested object");
+
+        string jsonBodyMentionOnly = "{\"name\":\"Release Notice\",\"body\":\"Changelog for tag_name: v8.8.8\"}";
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { jsonBodyMentionOnly }), null, "ParseReleaseTag ignores tag_name in body when no root tag exists");
+
+        string jsonPrecedingPrimitives = "{\"id\":456,\"prerelease\":false,\"tag_name\":\"v2.5.0\"}";
+        AssertEqual((string)parseTagMethod.Invoke(null, new object[] { jsonPrecedingPrimitives }), "v2.5.0", "ParseReleaseTag parses tag_name following numeric and boolean primitives");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests (Round 3): Path Traversal in Asset Name and Malicious URL Schemes
+        // ------------------------------------------------------------------------------
+        string jsonPathTraversal1 = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"../../Summit_Slave.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Slave.dll\"}]}";
+        AssertEqual((string)resolveUrlMethod.Invoke(null, new object[] { jsonPathTraversal1, null }), null, "Asset Matcher: Rejects forward-slash path traversal in asset name");
+
+        string jsonPathTraversal2 = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"..\\\\..\\\\Summit_Slave.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Slave.dll\"}]}";
+        AssertEqual((string)resolveUrlMethod.Invoke(null, new object[] { jsonPathTraversal2, null }), null, "Asset Matcher: Rejects back-slash path traversal in asset name");
+
+        string jsonMaliciousUrlFile = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"file:///C:/Windows/win.ini\"}]}";
+        AssertEqual((string)resolveUrlMethod.Invoke(null, new object[] { jsonMaliciousUrlFile, null }), null, "Asset Matcher: Rejects non-HTTP file:// URL scheme");
+
+        string jsonMaliciousUrlJs = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"javascript:alert(1)\"}]}";
+        AssertEqual((string)resolveUrlMethod.Invoke(null, new object[] { jsonMaliciousUrlJs, null }), null, "Asset Matcher: Rejects javascript: URL scheme");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests (Round 3): NormalizeRepository Quotes, Spaces, Fragments, and Unicode
+        // ------------------------------------------------------------------------------
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "\"mikudae/PEAK-Ascend\"" }), "mikudae/PEAK-Ascend", "NormalizeRepository: Strips surrounding double quotes");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "'mikudae/PEAK-Ascend'" }), "mikudae/PEAK-Ascend", "NormalizeRepository: Strips surrounding single quotes");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { " mikudae / PEAK-Ascend " }), "mikudae/PEAK-Ascend", "NormalizeRepository: Trims spaces around repository slashes");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "mikudae/PEAK-Ascend#readme" }), "mikudae/PEAK-Ascend", "NormalizeRepository: Strips URL fragment hash");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "https://github.com/mikudae/PEAK-Ascend/releases/latest" }), "mikudae/PEAK-Ascend", "NormalizeRepository: Extracts owner/repo from releases/latest path");
+        AssertEqual((string)normalizeRepoMethod.Invoke(null, new object[] { "test-owner/모드-repo" }), "test-owner/모드-repo", "NormalizeRepository: Preserves Unicode characters in repo name");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests (Round 3): Binary Validation against ZIP/GZIP and Proxy Errors
+        // ------------------------------------------------------------------------------
+        string zipFilePath = Path.Combine(tempTestDir, "test.zip");
+        File.WriteAllBytes(zipFilePath, new byte[] { 0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00 });
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { zipFilePath }), false, "IsValidDownloadedBinary: PK ZIP archive rejected");
+
+        string gzipFilePath = Path.Combine(tempTestDir, "test.gz");
+        File.WriteAllBytes(gzipFilePath, new byte[] { 0x1F, 0x8B, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00 });
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { gzipFilePath }), false, "IsValidDownloadedBinary: GZIP compressed archive rejected");
+
+        string svcUnavailPath = Path.Combine(tempTestDir, "503.txt");
+        File.WriteAllText(svcUnavailPath, "Service Unavailable: Server overloaded");
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { svcUnavailPath }), false, "IsValidDownloadedBinary: Service Unavailable text rejected");
+
+        string upstreamErrPath = Path.Combine(tempTestDir, "upstream.txt");
+        File.WriteAllText(upstreamErrPath, "upstream connect error or disconnect/reset before headers");
+        AssertEqual((bool)isValidBinaryMethod.Invoke(null, new object[] { upstreamErrPath }), false, "IsValidDownloadedBinary: Upstream proxy connect error rejected");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests (Round 3): Ascend Startup Cleanup
+        // ------------------------------------------------------------------------------
+        string orphanedAscendOld = Path.Combine(tempTestDir, "Ascend.dll.old");
+        string orphanedAscendDownload = Path.Combine(tempTestDir, "Ascend.dll.download");
+        File.WriteAllText(orphanedAscendOld, "ORPHANED_ASCEND_OLD");
+        File.WriteAllText(orphanedAscendDownload, "ORPHANED_ASCEND_DOWNLOAD");
+
+        cleanupMethod.Invoke(null, new object[] { crossActiveDll });
+        AssertEqual(File.Exists(orphanedAscendOld), false, "Startup Cleanup: Ascend.dll.old removed");
+        AssertEqual(File.Exists(orphanedAscendDownload), false, "Startup Cleanup: Ascend.dll.download removed");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests (Round 3): Absolute Path Resolution
+        // ------------------------------------------------------------------------------
+        MethodInfo getActiveDllMethod = slaveUpdaterType.GetMethod("GetActiveDllPath", BindingFlags.Public | BindingFlags.Static);
+        string activeDllResolved = (string)getActiveDllMethod.Invoke(null, null);
+        AssertTrue(!string.IsNullOrEmpty(activeDllResolved), "GetActiveDllPath returns non-empty path");
+        AssertTrue(Path.IsPathRooted(activeDllResolved), "GetActiveDllPath returns fully rooted absolute path");
+
+        // ------------------------------------------------------------------------------
+        // Adversarial Tests (Round 3): Non-HTTP Redirect Scheme Protection
+        // ------------------------------------------------------------------------------
+        int nonHttpRedirPort = 18101;
+        var nonHttpServer = new System.Net.HttpListener();
+        nonHttpServer.Prefixes.Add($"http://127.0.0.1:{nonHttpRedirPort}/");
+        nonHttpServer.Start();
+        bool nonHttpRunning = true;
+        Thread nonHttpThread = new Thread(() =>
+        {
+            while (nonHttpRunning)
+            {
+                try
+                {
+                    var ctx = nonHttpServer.GetContext();
+                    string path = ctx.Request.Url.AbsolutePath;
+                    if (path.Contains("/releases/latest"))
+                    {
+                        string respJson = "{\"tag_name\":\"v12.0.0\",\"assets\":[{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"http://127.0.0.1:" + nonHttpRedirPort + "/download/malicious_redirect\"}]}";
+                        byte[] buf = System.Text.Encoding.UTF8.GetBytes(respJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.OutputStream.Write(buf, 0, buf.Length);
+                        ctx.Response.Close();
+                    }
+                    else if (path.Contains("/download/malicious_redirect"))
+                    {
+                        // Redirect to non-HTTP URI scheme (e.g. file://)
+                        ctx.Response.StatusCode = 302;
+                        ctx.Response.Headers["Location"] = "file:///C:/Windows/win.ini";
+                        ctx.Response.Close();
+                    }
+                    else
+                    {
+                        ctx.Response.StatusCode = 404;
+                        ctx.Response.Close();
+                    }
+                }
+                catch { break; }
+            }
+        });
+        nonHttpThread.IsBackground = true;
+        nonHttpThread.Start();
+
+        string maliciousRedirDll = Path.Combine(tempTestDir, "Malicious_Summit.dll");
+        File.WriteAllText(maliciousRedirDll, "ACTIVE_MOD_BEFORE_MALICIOUS_REDIRECT");
+
+        bool nonHttpTermCalled = false;
+        termProp.SetValue(null, (Action)(() => { nonHttpTermCalled = true; }));
+
+        bool maliciousApplied = (bool)checkApplyMethod.Invoke(null, new object[] { $"http://127.0.0.1:{nonHttpRedirPort}/releases/latest", maliciousRedirDll, null });
+        AssertEqual(maliciousApplied, false, "CheckAndApplyUpdate rejects redirect to non-HTTP scheme");
+        AssertEqual(nonHttpTermCalled, false, "TerminateProcess not called on non-HTTP redirect rejection");
+        AssertEqual(File.ReadAllText(maliciousRedirDll), "ACTIVE_MOD_BEFORE_MALICIOUS_REDIRECT", "Active DLL preserved when redirect points to non-HTTP scheme");
+
+        nonHttpRunning = false;
+        nonHttpServer.Stop();
+        nonHttpServer.Close();
+        nonHttpThread.Join(500);
+
+        // Clean up mock state
+        termProp.SetValue(null, originalTerminate);
+        try { Directory.Delete(tempTestDir, true); } catch {}
+
         Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"==========================================================");
