@@ -40,7 +40,7 @@ internal static class Kit
 
 	internal static string Title = "Menu";
 
-	internal static string Version = "2.0";
+	internal static string Version = "2.5";
 
 	internal static string Blurb = "";
 

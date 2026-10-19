@@ -23,7 +23,7 @@ internal static class ModNet
 	{
 		public int ActorNumber;
 		public string NickName = "";
-		public string Version = "2.0";
+		public string Version = "2.5";
 		public float LastSeen;
 	}
 
@@ -771,7 +771,7 @@ internal static class ModNet
 			{
 				int sender = photonEvent.Sender;
 				string payload = photonEvent.CustomData as string ?? "";
-				string ver = "2.0";
+				string ver = "2.5";
 				string name = "";
 				string[] parts = payload.Split('|');
 				if (parts.Length > 1) ver = parts[1];

@@ -55,7 +55,8 @@ internal class Program
 
         string currentDir = AppContext.BaseDirectory;
         string workspaceRoot = Path.GetFullPath(Path.Combine(currentDir, @"..\..\..\.."));
-        string slaveDllPath = Path.Combine(workspaceRoot, "dist", "Summit_Slave.dll");
+        string slaveDllPath = Path.Combine(workspaceRoot, "dist", "AscentS.dll");
+        if (!File.Exists(slaveDllPath)) slaveDllPath = Path.Combine(workspaceRoot, "dist", "Summit_Slave.dll");
         string masterDllPath = Path.Combine(workspaceRoot, "dist", "Summit_Master.dll");
 
         AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
@@ -180,10 +181,10 @@ internal class Program
             AssertTrue((bool)masterIsAllowedMethod.Invoke(null, new object[] { sec }), $"Master has full access to {sec}");
         }
 
-        // 9. Ascend 2.0 Rebrand & Version Verification
+        // 9. Ascend 2.5 Rebrand & Version Verification
         Type kitType = masterAsm.GetType("Summit.Kit");
         FieldInfo versionField = kitType.GetField("Version", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        AssertEqual(versionField?.GetValue(null)?.ToString(), "2.0", "Kit.Version is '2.0'");
+        AssertEqual(versionField?.GetValue(null)?.ToString(), "2.5", "Kit.Version is '2.5'");
 
         Type pluginType = masterAsm.GetType("Summit.Plugin");
         var bepInAttr = pluginType.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().Name == "BepInPlugin");
@@ -191,7 +192,7 @@ internal class Program
         var nameProp = bepInAttr.GetType().GetProperty("Name");
         var verProp = bepInAttr.GetType().GetProperty("Version");
         AssertEqual(nameProp?.GetValue(bepInAttr)?.ToString(), "Ascend", "Plugin display name is 'Ascend'");
-        AssertEqual(verProp?.GetValue(bepInAttr)?.ToString(), "2.0", "Plugin version is '2.0'");
+        AssertEqual(verProp?.GetValue(bepInAttr)?.ToString(), "2.5", "Plugin version is '2.5'");
 
         // 10. Theme Presets & Dynamic Palette Verification
         Type themeType = masterAsm.GetType("Summit.Theme");
@@ -782,6 +783,11 @@ internal class Program
         // Asset Matcher Tests
         MethodInfo resolveUrlMethod = slaveUpdaterType.GetMethod("ResolveDownloadUrl", BindingFlags.Public | BindingFlags.Static);
         
+        // Asset Matcher Case 0: AscentS.dll present -> prioritizes AscentS.dll
+        string jsonAscentS = "{\"tag_name\":\"v2.5.0\",\"assets\":[{\"name\":\"Summit_Master.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Master.dll\"},{\"name\":\"AscentS.dll\",\"browser_download_url\":\"https://github.com/releases/AscentS.dll\"}]}";
+        string ascentSResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonAscentS, null });
+        AssertEqual(ascentSResolved, "https://github.com/releases/AscentS.dll", "Asset Matcher: Prioritizes AscentS.dll when present");
+
         // Asset Matcher Case 1: Both Summit_Master.dll and Summit_Slave.dll present -> resolves to Summit_Slave.dll
         string jsonDual = "{\"tag_name\":\"v2.1.0\",\"assets\":[{\"name\":\"Summit_Master.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Master.dll\"},{\"name\":\"Summit_Slave.dll\",\"browser_download_url\":\"https://github.com/releases/Summit_Slave.dll\"}]}";
         string dualResolved = (string)resolveUrlMethod.Invoke(null, new object[] { jsonDual, null });

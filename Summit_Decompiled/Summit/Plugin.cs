@@ -10,10 +10,10 @@ using Object = UnityEngine.Object;
 
 namespace Summit;
 
-[BepInPlugin("duskidle.peak.summit", "Ascend", "2.0")]
+[BepInPlugin("duskidle.peak.summit", "Ascend", "2.5")]
 public class Plugin : BaseUnityPlugin
 {
-	public const string Version = "2.0";
+	public const string Version = "2.5";
 
 	internal static ManualLogSource L;
 
@@ -73,7 +73,7 @@ public class Plugin : BaseUnityPlugin
 			}
 		});
 		Keys.Quiet.UnionWith(new string[2] { "CamDistance", "FlySpeed" });
-		Kit.Start(Config, Logger, "Ascend", "2.0", "A cheat menu for PEAK.", SelfTest.Asked, (KeyCode)282);
+		Kit.Start(Config, Logger, "Ascend", "2.5", "A cheat menu for PEAK.", SelfTest.Asked, (KeyCode)282);
 		Theme.Paint(new Color(Kit.PrimaryR.Value, Kit.PrimaryG.Value, Kit.PrimaryB.Value), new Color(Kit.SecondaryR.Value, Kit.SecondaryG.Value, Kit.SecondaryB.Value));
 		Menu.Ready = () => Features.InGame;
 		Menu.NotReady = "Get into the airport or a run first: nothing here works from the title screen.";
@@ -126,7 +126,7 @@ public class Plugin : BaseUnityPlugin
 		val.AddComponent<Menu>();
 		DebugBridge.Start();
 		Updater.Start(Config);
-		L.LogInfo((object)string.Format("Ascend {0} loaded - {1} opens the menu.", "2.0", Kit.MenuKey.Value));
+		L.LogInfo((object)string.Format("Ascend {0} loaded - {1} opens the menu.", "2.5", Kit.MenuKey.Value));
 	}
 
 	private void Update()

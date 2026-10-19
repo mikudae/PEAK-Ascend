@@ -37,7 +37,7 @@ if (-not (Test-Path $distDir)) {
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "       Building Ascend 2.0 Mod ($Configuration)" -ForegroundColor Cyan
+Write-Host "       Building Ascend 2.5 Mod ($Configuration)" -ForegroundColor Cyan
 Write-Host "       Target Role(s): $Role | Deploy Role: $DeployRole" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
@@ -82,7 +82,12 @@ if ($Role -eq "Both" -or $Role -eq "Master") {
 
 # 4. Compile Slave
 if ($Role -eq "Both" -or $Role -eq "Slave") {
-    Build-ModRole -targetRole "Slave" -outputBaseName "Summit_Slave"
+    Build-ModRole -targetRole "Slave" -outputBaseName "AscentS"
+    # Also mirror as Summit_Slave for backward compatibility
+    Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $distDir "Summit_Slave.dll") -Force
+    if (Test-Path (Join-Path $distDir "AscentS.pdb")) {
+        Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $distDir "Summit_Slave.pdb") -Force
+    }
 }
 
 # 5. Generate distribution instructions in dist/
@@ -122,8 +127,8 @@ HOW TO INSTALL FOR PEERS:
 Set-Content -Path $readmePath -Value $readmeContent -Encoding UTF8
 
 # 6. Deploy to active game directory
-$deploySourceDll = if ($DeployRole -eq "Slave") { Join-Path $distDir "Summit_Slave.dll" } else { Join-Path $distDir "Summit_Master.dll" }
-$deploySourcePdb = if ($DeployRole -eq "Slave") { Join-Path $distDir "Summit_Slave.pdb" } else { Join-Path $distDir "Summit_Master.pdb" }
+$deploySourceDll = if ($DeployRole -eq "Slave") { Join-Path $distDir "AscentS.dll" } else { Join-Path $distDir "Summit_Master.dll" }
+$deploySourcePdb = if ($DeployRole -eq "Slave") { Join-Path $distDir "AscentS.pdb" } else { Join-Path $distDir "Summit_Master.pdb" }
 
 if (Test-Path $deploySourceDll) {
     if (-not $peakProc) {
@@ -152,9 +157,13 @@ if (Test-Path $deploySourceDll) {
 $slaveTestDir = "C:\Users\feldring\Downloads\PEAK\PEAK.v2.6.b-OFME\PEAK_Slave\BepInEx\plugins"
 if (Test-Path $slaveTestDir) {
     try {
-        Copy-Item (Join-Path $distDir "Summit_Slave.dll") (Join-Path $slaveTestDir "Summit.dll") -Force
-        Copy-Item (Join-Path $distDir "Summit_Slave.pdb") (Join-Path $slaveTestDir "Summit.pdb") -Force
-        Write-Host "[DEPLOY] Synced Slave DLL to PEAK_Slave test folder" -ForegroundColor Green
+        Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "AscentS.dll") -Force
+        Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "Summit.dll") -Force
+        if (Test-Path (Join-Path $distDir "AscentS.pdb")) {
+            Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "AscentS.pdb") -Force
+            Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "Summit.pdb") -Force
+        }
+        Write-Host "[DEPLOY] Synced Slave DLL (AscentS.dll) to PEAK_Slave test folder" -ForegroundColor Green
     } catch {
         Write-Host "[DEPLOY SKIPPED] PEAK_Slave is running; close PEAK_Slave to update active in-game Slave DLL." -ForegroundColor Yellow
     }
@@ -163,5 +172,5 @@ if (Test-Path $slaveTestDir) {
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host " [SUCCESS] Build process completed successfully!" -ForegroundColor Green
 Write-Host " Master Binary : dist\Summit_Master.dll" -ForegroundColor Green
-Write-Host " Slave Binary  : dist\Summit_Slave.dll" -ForegroundColor Green
+Write-Host " Slave Binary  : dist\AscentS.dll (and Summit_Slave.dll)" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green

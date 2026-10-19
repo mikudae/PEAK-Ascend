@@ -91,7 +91,7 @@ public static class Updater
 			catch
 			{
 			}
-			return "2.0";
+			return "2.5";
 		}
 	}
 
@@ -145,15 +145,21 @@ public static class Updater
 			string pluginDir = BepInEx.Paths.PluginPath;
 			if (!string.IsNullOrEmpty(pluginDir) && Directory.Exists(pluginDir))
 			{
+				string c0 = Path.GetFullPath(Path.Combine(pluginDir, "AscentS.dll"));
+				if (File.Exists(c0)) return c0;
 				string c1 = Path.GetFullPath(Path.Combine(pluginDir, "Summit.dll"));
 				if (File.Exists(c1)) return c1;
 				string c2 = Path.GetFullPath(Path.Combine(pluginDir, "Summit_Slave.dll"));
 				if (File.Exists(c2)) return c2;
+				foreach (var file in Directory.GetFiles(pluginDir, "Ascent*.dll", SearchOption.AllDirectories))
+				{
+					return Path.GetFullPath(file);
+				}
 				foreach (var file in Directory.GetFiles(pluginDir, "Summit*.dll", SearchOption.AllDirectories))
 				{
 					return Path.GetFullPath(file);
 				}
-				return c1;
+				return c0;
 			}
 		}
 		catch
@@ -618,7 +624,7 @@ public static class Updater
 	{
 		if (candidateNames == null || candidateNames.Length == 0)
 		{
-			candidateNames = new string[] { "Summit_Slave.dll", "Summit-Slave.dll", "Summit.dll", "Ascend_Slave.dll", "Ascend-Slave.dll", "Ascend.dll" };
+			candidateNames = new string[] { "AscentS.dll", "Summit_Slave.dll", "Summit-Slave.dll", "Summit.dll", "Ascend_Slave.dll", "Ascend-Slave.dll", "Ascend.dll" };
 		}
 
 		var assets = ParseAssets(json);
@@ -880,8 +886,8 @@ public static class Updater
 				client.Timeout = TimeSpan.FromSeconds(30);
 				try
 				{
-					string safeVer = Regex.Replace(currentVer ?? "2.0", @"[^a-zA-Z0-9\.\-_]", "");
-					if (string.IsNullOrEmpty(safeVer)) safeVer = "2.0";
+					string safeVer = Regex.Replace(currentVer ?? "2.5", @"[^a-zA-Z0-9\.\-_]", "");
+					if (string.IsNullOrEmpty(safeVer)) safeVer = "2.5";
 					client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "PEAK-Ascend-Updater/" + safeVer);
 					client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.github.v3+json, application/octet-stream");
 				}

@@ -11,12 +11,17 @@ if (-not (Test-Path $slaveExe)) {
     exit 1
 }
 
-# Ensure latest Summit_Slave.dll is copied
-$distSlave = Join-Path $PSScriptRoot "dist\Summit_Slave.dll"
-$slavePlugin = Join-Path $slaveDir "BepInEx\plugins\Summit.dll"
+# Ensure latest AscentS.dll is copied
+$distSlave = Join-Path $PSScriptRoot "dist\AscentS.dll"
+if (-not (Test-Path $distSlave)) {
+    $distSlave = Join-Path $PSScriptRoot "dist\Summit_Slave.dll"
+}
+$slavePlugin = Join-Path $slaveDir "BepInEx\plugins\AscentS.dll"
+$legacyPlugin = Join-Path $slaveDir "BepInEx\plugins\Summit.dll"
 if (Test-Path $distSlave) {
     Copy-Item $distSlave $slavePlugin -Force
-    Write-Host "[SYNC] Synced latest Summit_Slave.dll to PEAK_Slave plugins folder." -ForegroundColor Green
+    Copy-Item $distSlave $legacyPlugin -Force
+    Write-Host "[SYNC] Synced latest AscentS.dll to PEAK_Slave plugins folder." -ForegroundColor Green
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
