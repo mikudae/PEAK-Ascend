@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>PEAKModTemplate</AssemblyName>
+    <RootNamespace>PEAKModTemplate</RootNamespace>
+    <Description>PEAK BepInEx 5 Mod Starter Template</Description>
+    <Version>1.0.0</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+
+    <!-- Configure Default PEAK Game Path -->
+    <GameDir Condition="'$(GameDir)' == ''">C:\Users\feldring\Downloads\PEAK\PEAK.v2.6.b-OFME\PEAK</GameDir>
+    <PluginsDir>$(GameDir)\BepInEx\plugins</PluginsDir>
+  </PropertyGroup>
+
+  <!-- Enables portable net472 compilation under modern .NET SDK without legacy Visual Studio targeting packs -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Staged Game and BepInEx Reference Assemblies -->
+  <ItemGroup>
+    <Reference Include="..\lib\*.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Auto-Deploy to Game's BepInEx/plugins Folder Upon Successful Build -->
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="Exists('$(GameDir)')">
+    <Message Importance="high" Text="Deploying $(TargetPath) to $(PluginsDir)..." />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginsDir)" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(PluginsDir)" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+  </Target>
+
+</Project>

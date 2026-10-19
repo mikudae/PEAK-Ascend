@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Summit</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Users\feldring\Downloads\PEAK\PEAK.v2.6.b-OFME\PEAK</GameDir>
+    <PluginsDir>$(GameDir)\BepInEx\plugins</PluginsDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ModRole)' == 'Slave'">
+    <DefineConstants>$(DefineConstants);SLAVE_BUILD</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>11.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RootNamespace />
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="Summit.logo.png" />
+    <None Remove="Summit.discord_mark.png" />
+    <None Remove="Summit.egg.png" />
+    <None Remove="Summit.egg.wav" />
+    <EmbeddedResource Include="Summit.logo.png" LogicalName="Summit.logo.png" />
+    <EmbeddedResource Include="Summit.discord_mark.png" LogicalName="Summit.discord_mark.png" />
+    <EmbeddedResource Include="Summit.egg.png" LogicalName="Summit.egg.png" />
+    <EmbeddedResource Include="Summit.egg.wav" LogicalName="Summit.egg.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="..\lib\*.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="Exists('$(GameDir)') and '$(SkipDeploy)' != 'true'">
+    <Message Importance="high" Text="Auto-deploying $(TargetPath) to $(PluginsDir)..." />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginsDir)" ContinueOnError="WarnAndContinue" Retries="1" RetryDelayMilliseconds="100" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(PluginsDir)" Condition="Exists('$(TargetDir)$(TargetName).pdb')" ContinueOnError="WarnAndContinue" Retries="1" RetryDelayMilliseconds="100" />
+  </Target>
+</Project>
