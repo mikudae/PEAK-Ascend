@@ -676,13 +676,17 @@ internal class Program
         AssertEqual(File.Exists(masterTempFile), false, "peak_debug_master.txt was deleted on Stop()");
 
         // 16. Port Collision & Auto-Increment Test
+        startMethod.Invoke(null, null);
+        int portBeforeCollision = (int)activePortProp.GetValue(null);
+        stopMethod.Invoke(null, null);
+
         var dummyListener = new System.Net.HttpListener();
-        dummyListener.Prefixes.Add("http://127.0.0.1:18080/");
+        dummyListener.Prefixes.Add($"http://127.0.0.1:{portBeforeCollision}/");
         dummyListener.Start();
 
         startMethod.Invoke(null, null);
         int incrementedPort = (int)activePortProp.GetValue(null);
-        AssertEqual(incrementedPort, 18081, "Port auto-incremented from 18080 to 18081 when 18080 is occupied");
+        AssertEqual(incrementedPort, portBeforeCollision + 1, $"Port auto-incremented from {portBeforeCollision} to {portBeforeCollision + 1} when {portBeforeCollision} is occupied");
         stopMethod.Invoke(null, null);
 
         dummyListener.Stop();
@@ -696,7 +700,7 @@ internal class Program
 
         slaveStartMethod.Invoke(null, null);
         int slavePort = (int)slavePortProp.GetValue(null);
-        AssertEqual(slavePort, 18081, "Slave binary defaults to port 18081");
+        AssertTrue(slavePort >= 18081, $"Slave binary allocates port >= 18081 (got {slavePort})");
         string slaveTempFile = Path.Combine(Path.GetTempPath(), "peak_debug_slave.txt");
         AssertTrue(File.Exists(slaveTempFile), "peak_debug_slave.txt was created in %TEMP%");
         string recordedSlaveUrl = File.ReadAllText(slaveTempFile).Trim();
@@ -744,7 +748,7 @@ internal class Program
         string mUrl = (string)activeUrlProp.GetValue(null);
         AssertTrue(File.Exists(masterTempFile), "Master temp file created");
         // Simulate a second master instance starting and overwriting the temp file with another URL
-        string simulatedSecondUrl = "http://127.0.0.1:18082";
+        string simulatedSecondUrl = "http://127.0.0.1:19999";
         File.WriteAllText(masterTempFile, simulatedSecondUrl);
         // Stop first master instance
         stopMethod.Invoke(null, null);

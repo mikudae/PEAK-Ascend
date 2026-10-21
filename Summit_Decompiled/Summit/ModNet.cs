@@ -267,30 +267,25 @@ internal static class ModNet
 			if (targetChar != null)
 			{
 				PhotonView targetPv = targetChar.GetComponent<PhotonView>() ?? (targetChar.refs != null ? targetChar.refs.view : null);
-				Vector3 forward = (targetChar.data != null && targetChar.data.lookDirection_Flat.sqrMagnitude > 0.01f)
-					? targetChar.data.lookDirection_Flat
-					: targetChar.transform.forward;
-				Vector3 spawnPoint = targetChar.Center + forward * 0.85f + Vector3.up * 0.25f;
+				
+				// Spawn 500m below ground so no visual/physical duplicate appears in front of the scout
+				Vector3 spawnPoint = targetChar.Center + Vector3.down * 500f;
 
 				GameObject spawnedObj = PhotonNetwork.Instantiate("0_Items/" + resolvedPrefab, spawnPoint, Quaternion.identity, 0);
-				if (spawnedObj != null && targetPv != null)
+				if (spawnedObj != null)
 				{
-					if (PhotonNetwork.IsMasterClient)
+					try
 					{
-						Item spawnedItem = spawnedObj.GetComponent<Item>();
-						if (spawnedItem != null)
-						{
-							spawnedItem.RequestPickup(targetPv);
-						}
+						Rigidbody rb = spawnedObj.GetComponent<Rigidbody>();
+						if (rb != null) rb.isKinematic = true;
+						foreach (var rend in spawnedObj.GetComponentsInChildren<Renderer>(true)) rend.enabled = false;
+						foreach (var col in spawnedObj.GetComponentsInChildren<Collider>(true)) col.enabled = false;
 					}
-					else
+					catch {}
+
+					if (targetPv != null)
 					{
-						PhotonView itemPv = spawnedObj.GetComponent<PhotonView>();
-						if (itemPv != null)
-						{
-							itemPv.RPC("RequestPickup", RpcTarget.MasterClient, targetPv);
-						}
-						else
+						if (PhotonNetwork.IsMasterClient)
 						{
 							Item spawnedItem = spawnedObj.GetComponent<Item>();
 							if (spawnedItem != null)
@@ -298,7 +293,26 @@ internal static class ModNet
 								spawnedItem.RequestPickup(targetPv);
 							}
 						}
+						else
+						{
+							PhotonView itemPv = spawnedObj.GetComponent<PhotonView>();
+							if (itemPv != null)
+							{
+								itemPv.RPC("RequestPickup", RpcTarget.MasterClient, targetPv);
+							}
+							else
+							{
+								Item spawnedItem = spawnedObj.GetComponent<Item>();
+								if (spawnedItem != null)
+								{
+									spawnedItem.RequestPickup(targetPv);
+								}
+							}
+						}
 					}
+
+					// Owner authoritatively destroys the spawned object after pickup is dispatched
+					CleanupSpawnedItem(spawnedObj, 0.35f);
 				}
 			}
 			return true;
@@ -308,6 +322,51 @@ internal static class ModNet
 			Debug.LogWarning("[ModNet] DeliverItemToScout failed: " + ex.Message);
 			return false;
 		}
+	}
+
+	public static void CleanupSpawnedItem(GameObject obj, float delay = 0.35f)
+	{
+		if (obj == null) return;
+		try
+		{
+			MonoBehaviour host = Menu.Instance != null ? (MonoBehaviour)Menu.Instance : (MonoBehaviour)Plugin.Instance;
+			if (host != null)
+			{
+				host.StartCoroutine(DestroySpawnedItemDelayed(obj, delay));
+			}
+			else
+			{
+				DestroySpawnedItemDirect(obj);
+			}
+		}
+		catch
+		{
+			DestroySpawnedItemDirect(obj);
+		}
+	}
+
+	private static void DestroySpawnedItemDirect(GameObject obj)
+	{
+		if (obj == null) return;
+		try
+		{
+			PhotonView pv = obj.GetComponent<PhotonView>();
+			if (pv != null && pv.IsMine)
+			{
+				PhotonNetwork.Destroy(obj);
+			}
+			else
+			{
+				UnityEngine.Object.Destroy(obj);
+			}
+		}
+		catch {}
+	}
+
+	private static System.Collections.IEnumerator DestroySpawnedItemDelayed(GameObject obj, float delay)
+	{
+		yield return new WaitForSeconds(delay);
+		DestroySpawnedItemDirect(obj);
 	}
 
 	public static void HandleInjectedItem(string destination, string itemName)

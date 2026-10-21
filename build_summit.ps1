@@ -160,13 +160,14 @@ if (-not $SkipDeploy) {
     $slaveTestDir = "C:\Users\feldring\Downloads\PEAK\PEAK.v2.6.b-OFME\PEAK_Slave\BepInEx\plugins"
     if (Test-Path $slaveTestDir) {
         try {
-            Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "AscentS.dll") -Force
+            if (Test-Path (Join-Path $slaveTestDir "AscentS.dll")) {
+                Remove-Item (Join-Path $slaveTestDir "AscentS.dll") -Force -ErrorAction SilentlyContinue
+            }
             Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "Summit.dll") -Force
             if (Test-Path (Join-Path $distDir "AscentS.pdb")) {
-                Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "AscentS.pdb") -Force
                 Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "Summit.pdb") -Force
             }
-            Write-Host "[DEPLOY] Synced Slave DLL (AscentS.dll) to PEAK_Slave test folder" -ForegroundColor Green
+            Write-Host "[DEPLOY] Synced Slave DLL (AscentS.dll -> Summit.dll) to PEAK_Slave test folder" -ForegroundColor Green
         } catch {
             Write-Host "[DEPLOY SKIPPED] PEAK_Slave is running; close PEAK_Slave to update active in-game Slave DLL." -ForegroundColor Yellow
         }

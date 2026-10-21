@@ -15,6 +15,8 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string Version = "2.5";
 
+	public static Plugin Instance;
+
 	internal static ManualLogSource L;
 
 	internal static ConfigEntry<string>[] Outfits;
@@ -23,6 +25,7 @@ public class Plugin : BaseUnityPlugin
 
 	private void Awake()
 	{
+		Instance = this;
 		L = Logger;
 		Kit.BlockAchievements = Config.Bind<bool>("General", "BlockAchievements", true, "While true, no achievement or badge is granted. Can also be switched on the menu's About page.");
 		Outfits = new ConfigEntry<string>[4];

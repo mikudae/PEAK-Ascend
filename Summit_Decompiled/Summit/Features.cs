@@ -297,29 +297,22 @@ internal static class Features
 		}
 		else
 		{
-			Vector3 forward = (c.data != null && c.data.lookDirection_Flat.sqrMagnitude > 0.01f)
-				? c.data.lookDirection_Flat
-				: c.transform.forward;
-			Vector3 spawnPoint = c.Center + forward * 0.85f + Vector3.up * 0.25f;
+			Vector3 spawnPoint = c.Center + Vector3.down * 500f;
 			GameObject obj = PhotonNetwork.Instantiate("0_Items/" + prefabName, spawnPoint, Quaternion.identity, (byte)0, (object[])null);
-			if (obj != null && pv != null)
+			if (obj != null)
 			{
-				if (PhotonNetwork.IsMasterClient)
+				try
 				{
-					Item spawnedItem = obj.GetComponent<Item>();
-					if (spawnedItem != null)
-					{
-						spawnedItem.RequestPickup(pv);
-					}
+					Rigidbody rb = obj.GetComponent<Rigidbody>();
+					if (rb != null) rb.isKinematic = true;
+					foreach (var rend in obj.GetComponentsInChildren<Renderer>(true)) rend.enabled = false;
+					foreach (var col in obj.GetComponentsInChildren<Collider>(true)) col.enabled = false;
 				}
-				else
+				catch {}
+
+				if (pv != null)
 				{
-					PhotonView itemPv = obj.GetComponent<PhotonView>();
-					if (itemPv != null)
-					{
-						itemPv.RPC("RequestPickup", RpcTarget.MasterClient, pv);
-					}
-					else
+					if (PhotonNetwork.IsMasterClient)
 					{
 						Item spawnedItem = obj.GetComponent<Item>();
 						if (spawnedItem != null)
@@ -327,7 +320,25 @@ internal static class Features
 							spawnedItem.RequestPickup(pv);
 						}
 					}
+					else
+					{
+						PhotonView itemPv = obj.GetComponent<PhotonView>();
+						if (itemPv != null)
+						{
+							itemPv.RPC("RequestPickup", RpcTarget.MasterClient, pv);
+						}
+						else
+						{
+							Item spawnedItem = obj.GetComponent<Item>();
+							if (spawnedItem != null)
+							{
+								spawnedItem.RequestPickup(pv);
+							}
+						}
+					}
 				}
+
+				ModNet.CleanupSpawnedItem(obj, 0.35f);
 			}
 		}
 	}
