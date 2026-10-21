@@ -281,16 +281,6 @@ internal static class Features
 
 	public static void HandItem(Character c, Item item)
 	{
-		//IL_0006: Unknown result type (might be due to invalid IL or missing references)
-		//IL_000b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_001d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0022: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0028: Unknown result type (might be due to invalid IL or missing references)
-		//IL_002d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
-		//IL_003c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0041: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0046: Unknown result type (might be due to invalid IL or missing references)
 		if ((Object)(object)c == (Object)null || (Object)(object)item == (Object)null) return;
 		string prefabName = ((Object)item).name;
 
@@ -301,20 +291,42 @@ internal static class Features
 		}
 
 		int actor = (pv != null && pv.Owner != null) ? pv.Owner.ActorNumber : -1;
-		if (actor > 0 && ModNet.Role == ModNet.ModRole.Master)
+		if (actor > 0)
 		{
 			ModNet.DeliverItemToScout(actor, "Hands", prefabName);
 		}
 		else
 		{
-			Vector3 lookDirection_Flat = c.data.lookDirection_Flat;
-			GameObject obj = PhotonNetwork.Instantiate("0_Items/" + prefabName, c.Center + lookDirection_Flat * 0.9f + Vector3.up * 0.3f, Quaternion.identity, (byte)0, (object[])null);
+			Vector3 forward = (c.data != null && c.data.lookDirection_Flat.sqrMagnitude > 0.01f)
+				? c.data.lookDirection_Flat
+				: c.transform.forward;
+			Vector3 spawnPoint = c.Center + forward * 0.85f + Vector3.up * 0.25f;
+			GameObject obj = PhotonNetwork.Instantiate("0_Items/" + prefabName, spawnPoint, Quaternion.identity, (byte)0, (object[])null);
 			if (obj != null && pv != null)
 			{
-				Item spawnedItem = obj.GetComponent<Item>();
-				if (spawnedItem != null)
+				if (PhotonNetwork.IsMasterClient)
 				{
-					spawnedItem.RequestPickup(pv);
+					Item spawnedItem = obj.GetComponent<Item>();
+					if (spawnedItem != null)
+					{
+						spawnedItem.RequestPickup(pv);
+					}
+				}
+				else
+				{
+					PhotonView itemPv = obj.GetComponent<PhotonView>();
+					if (itemPv != null)
+					{
+						itemPv.RPC("RequestPickup", RpcTarget.MasterClient, pv);
+					}
+					else
+					{
+						Item spawnedItem = obj.GetComponent<Item>();
+						if (spawnedItem != null)
+						{
+							spawnedItem.RequestPickup(pv);
+						}
+					}
 				}
 			}
 		}

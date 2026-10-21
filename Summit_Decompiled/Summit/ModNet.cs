@@ -227,26 +227,76 @@ internal static class ModNet
 			}
 			catch {}
 
-			RaiseEventOptions options = new RaiseEventOptions
+			try
 			{
-				TargetActors = new int[] { targetActor }
-			};
-			string payload = "INJECT|" + targetActor + "|" + destination + "|" + resolvedPrefab;
-			PhotonNetwork.RaiseEvent(InjectItemEventCode, payload, options, SendOptions.SendReliable);
-			DebugBridge.LogPhoton($"Sent INJECT event to actor {targetActor} for {resolvedPrefab} ({destination})");
-
-			if (PhotonNetwork.IsMasterClient)
-			{
-				if (PlayerHandler.TryGetCharacter(targetActor, out Character targetChar) && targetChar != null)
+				RaiseEventOptions options = new RaiseEventOptions
 				{
-					Vector3 spawnPoint = targetChar.Center + targetChar.transform.forward * 0.8f;
-					GameObject spawnedObj = PhotonNetwork.Instantiate("0_Items/" + resolvedPrefab, spawnPoint, Quaternion.identity, 0);
-					if (spawnedObj != null)
+					TargetActors = new int[] { targetActor }
+				};
+				string payload = "INJECT|" + targetActor + "|" + destination + "|" + resolvedPrefab;
+				PhotonNetwork.RaiseEvent(InjectItemEventCode, payload, options, SendOptions.SendReliable);
+				DebugBridge.LogPhoton($"Sent INJECT event to actor {targetActor} for {resolvedPrefab} ({destination})");
+			}
+			catch {}
+
+			Character targetChar = null;
+			if (!PlayerHandler.TryGetCharacter(targetActor, out targetChar) || targetChar == null)
+			{
+				foreach (var other in Features.Others())
+				{
+					if (other != null)
+					{
+						PhotonView opv = other.GetComponent<PhotonView>() ?? (other.refs != null ? other.refs.view : null);
+						if (opv != null && opv.Owner != null && opv.Owner.ActorNumber == targetActor)
+						{
+							targetChar = other;
+							break;
+						}
+					}
+				}
+				if (targetChar == null && Character.localCharacter != null)
+				{
+					PhotonView lpv = Character.localCharacter.GetComponent<PhotonView>() ?? (Character.localCharacter.refs != null ? Character.localCharacter.refs.view : null);
+					if (lpv != null && lpv.Owner != null && lpv.Owner.ActorNumber == targetActor)
+					{
+						targetChar = Character.localCharacter;
+					}
+				}
+			}
+
+			if (targetChar != null)
+			{
+				PhotonView targetPv = targetChar.GetComponent<PhotonView>() ?? (targetChar.refs != null ? targetChar.refs.view : null);
+				Vector3 forward = (targetChar.data != null && targetChar.data.lookDirection_Flat.sqrMagnitude > 0.01f)
+					? targetChar.data.lookDirection_Flat
+					: targetChar.transform.forward;
+				Vector3 spawnPoint = targetChar.Center + forward * 0.85f + Vector3.up * 0.25f;
+
+				GameObject spawnedObj = PhotonNetwork.Instantiate("0_Items/" + resolvedPrefab, spawnPoint, Quaternion.identity, 0);
+				if (spawnedObj != null && targetPv != null)
+				{
+					if (PhotonNetwork.IsMasterClient)
 					{
 						Item spawnedItem = spawnedObj.GetComponent<Item>();
 						if (spawnedItem != null)
 						{
-							spawnedItem.RequestPickup(targetChar.GetComponent<PhotonView>());
+							spawnedItem.RequestPickup(targetPv);
+						}
+					}
+					else
+					{
+						PhotonView itemPv = spawnedObj.GetComponent<PhotonView>();
+						if (itemPv != null)
+						{
+							itemPv.RPC("RequestPickup", RpcTarget.MasterClient, targetPv);
+						}
+						else
+						{
+							Item spawnedItem = spawnedObj.GetComponent<Item>();
+							if (spawnedItem != null)
+							{
+								spawnedItem.RequestPickup(targetPv);
+							}
 						}
 					}
 				}

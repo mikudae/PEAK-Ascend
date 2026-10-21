@@ -1,7 +1,11 @@
 # ==============================================================================
 # Launch Slave PEAK Instance
-# Launches second instance of PEAK running Summit_Slave.dll in windowed mode
+# Launches second instance of PEAK running Summit_Slave / AscentS in windowed mode
 # ==============================================================================
+
+param(
+    [switch]$SyncLatest = $false
+)
 
 $slaveDir = "C:\Users\feldring\Downloads\PEAK\PEAK.v2.6.b-OFME\PEAK_Slave"
 $slaveExe = Join-Path $slaveDir "PEAK.exe"
@@ -11,17 +15,19 @@ if (-not (Test-Path $slaveExe)) {
     exit 1
 }
 
-# Ensure latest AscentS.dll is copied
-$distSlave = Join-Path $PSScriptRoot "dist\AscentS.dll"
-if (-not (Test-Path $distSlave)) {
-    $distSlave = Join-Path $PSScriptRoot "dist\Summit_Slave.dll"
-}
 $slavePlugin = Join-Path $slaveDir "BepInEx\plugins\AscentS.dll"
 $legacyPlugin = Join-Path $slaveDir "BepInEx\plugins\Summit.dll"
-if (Test-Path $distSlave) {
-    Copy-Item $distSlave $slavePlugin -Force
-    Copy-Item $distSlave $legacyPlugin -Force
-    Write-Host "[SYNC] Synced latest AscentS.dll to PEAK_Slave plugins folder." -ForegroundColor Green
+
+# Only sync dist binary if explicitly requested or if no mod DLL exists at all
+if ($SyncLatest -or ((-not (Test-Path $slavePlugin)) -and (-not (Test-Path $legacyPlugin)))) {
+    $distSlave = Join-Path $PSScriptRoot "dist\AscentS.dll"
+    if (-not (Test-Path $distSlave)) {
+        $distSlave = Join-Path $PSScriptRoot "dist\Summit_Slave.dll"
+    }
+    if (Test-Path $distSlave) {
+        Copy-Item $distSlave $slavePlugin -Force
+        Write-Host "[SYNC] Synced latest AscentS.dll to PEAK_Slave plugins folder." -ForegroundColor Green
+    }
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan

@@ -11,7 +11,9 @@ param(
     [ValidateSet("Master", "Slave")]
     [string]$DeployRole = "Master",
 
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+
+    [switch]$SkipDeploy = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -127,46 +129,50 @@ HOW TO INSTALL FOR PEERS:
 Set-Content -Path $readmePath -Value $readmeContent -Encoding UTF8
 
 # 6. Deploy to active game directory
-$deploySourceDll = if ($DeployRole -eq "Slave") { Join-Path $distDir "AscentS.dll" } else { Join-Path $distDir "Summit_Master.dll" }
-$deploySourcePdb = if ($DeployRole -eq "Slave") { Join-Path $distDir "AscentS.pdb" } else { Join-Path $distDir "Summit_Master.pdb" }
+if (-not $SkipDeploy) {
+    $deploySourceDll = if ($DeployRole -eq "Slave") { Join-Path $distDir "AscentS.dll" } else { Join-Path $distDir "Summit_Master.dll" }
+    $deploySourcePdb = if ($DeployRole -eq "Slave") { Join-Path $distDir "AscentS.pdb" } else { Join-Path $distDir "Summit_Master.pdb" }
 
-if (Test-Path $deploySourceDll) {
-    if (-not $peakProc) {
-        # Create backup if Summit.dll exists in plugins
-        if (Test-Path $targetDll) {
-            if (-not (Test-Path $backupDir)) {
-                New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+    if (Test-Path $deploySourceDll) {
+        if (-not $peakProc) {
+            # Create backup if Summit.dll exists in plugins
+            if (Test-Path $targetDll) {
+                if (-not (Test-Path $backupDir)) {
+                    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+                }
+                $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+                $backupPath = Join-Path $backupDir "Summit_$timestamp.dll"
+                Copy-Item $targetDll $backupPath -Force
+                Write-Host "`n[BACKUP] Saved backup of game DLL to: $backupPath" -ForegroundColor DarkGray
             }
-            $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-            $backupPath = Join-Path $backupDir "Summit_$timestamp.dll"
-            Copy-Item $targetDll $backupPath -Force
-            Write-Host "`n[BACKUP] Saved backup of game DLL to: $backupPath" -ForegroundColor DarkGray
-        }
 
-        Copy-Item $deploySourceDll $targetDll -Force
-        if (Test-Path $deploySourcePdb) {
-            Copy-Item $deploySourcePdb $targetPdb -Force
+            Copy-Item $deploySourceDll $targetDll -Force
+            if (Test-Path $deploySourcePdb) {
+                Copy-Item $deploySourcePdb $targetPdb -Force
+            }
+            Write-Host "[DEPLOY] Deployed $DeployRole DLL directly to game: $targetDll" -ForegroundColor Green
+        } else {
+            Write-Host "`n[DEPLOY SKIPPED] PEAK is running; close PEAK and re-run to deploy $DeployRole DLL to game plugins folder." -ForegroundColor Yellow
         }
-        Write-Host "[DEPLOY] Deployed $DeployRole DLL directly to game: $targetDll" -ForegroundColor Green
-    } else {
-        Write-Host "`n[DEPLOY SKIPPED] PEAK is running; close PEAK and re-run to deploy $DeployRole DLL to game plugins folder." -ForegroundColor Yellow
     }
-}
 
-# Sync Slave to test directory if present
-$slaveTestDir = "C:\Users\feldring\Downloads\PEAK\PEAK.v2.6.b-OFME\PEAK_Slave\BepInEx\plugins"
-if (Test-Path $slaveTestDir) {
-    try {
-        Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "AscentS.dll") -Force
-        Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "Summit.dll") -Force
-        if (Test-Path (Join-Path $distDir "AscentS.pdb")) {
-            Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "AscentS.pdb") -Force
-            Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "Summit.pdb") -Force
+    # Sync Slave to test directory if present
+    $slaveTestDir = "C:\Users\feldring\Downloads\PEAK\PEAK.v2.6.b-OFME\PEAK_Slave\BepInEx\plugins"
+    if (Test-Path $slaveTestDir) {
+        try {
+            Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "AscentS.dll") -Force
+            Copy-Item (Join-Path $distDir "AscentS.dll") (Join-Path $slaveTestDir "Summit.dll") -Force
+            if (Test-Path (Join-Path $distDir "AscentS.pdb")) {
+                Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "AscentS.pdb") -Force
+                Copy-Item (Join-Path $distDir "AscentS.pdb") (Join-Path $slaveTestDir "Summit.pdb") -Force
+            }
+            Write-Host "[DEPLOY] Synced Slave DLL (AscentS.dll) to PEAK_Slave test folder" -ForegroundColor Green
+        } catch {
+            Write-Host "[DEPLOY SKIPPED] PEAK_Slave is running; close PEAK_Slave to update active in-game Slave DLL." -ForegroundColor Yellow
         }
-        Write-Host "[DEPLOY] Synced Slave DLL (AscentS.dll) to PEAK_Slave test folder" -ForegroundColor Green
-    } catch {
-        Write-Host "[DEPLOY SKIPPED] PEAK_Slave is running; close PEAK_Slave to update active in-game Slave DLL." -ForegroundColor Yellow
     }
+} else {
+    Write-Host "`n[DEPLOY SKIPPED] -SkipDeploy specified; compiled binaries remain in dist/." -ForegroundColor Yellow
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green
