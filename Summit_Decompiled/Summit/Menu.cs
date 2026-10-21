@@ -1014,6 +1014,8 @@ public class Menu : MonoBehaviour
 		{
 			Card(page, "Ascend Network", 0);
 			Cu("modNet", "Network Role & Lobby Scouts", "Shows network mod role and detected slave mod users in the lobby.", DrawNetStatus);
+			Card(page, "Multiplayer Lobby", 0);
+			Cu("joinSlave", "Join Slave Lobby", "Directly join a detected Slave scout's active lobby session without needing a room code.", DrawJoinSlave);
 		}
 		else
 		{
@@ -2259,6 +2261,42 @@ public class Menu : MonoBehaviour
 			{
 				GUILayout.Label("Waiting for Master to host a lobby...", Theme.Small, Array.Empty<GUILayoutOption>());
 			}
+		}
+
+		GUILayout.EndVertical();
+	}
+
+	private void DrawJoinSlave(float width)
+	{
+		GUILayout.BeginVertical(Array.Empty<GUILayoutOption>());
+
+		if (Photon.Pun.PhotonNetwork.InRoom && Photon.Pun.PhotonNetwork.CurrentRoom != null)
+		{
+			GUILayout.Label("Connected to Room: " + Photon.Pun.PhotonNetwork.CurrentRoom.Name, Theme.Label, Array.Empty<GUILayoutOption>());
+			GUILayout.Label("Connected with host and scouts in session.", Theme.Small, Array.Empty<GUILayoutOption>());
+		}
+
+		string detectedRoom = ModNet.GetActiveSlaveRoomInfo();
+		if (!string.IsNullOrEmpty(detectedRoom))
+		{
+			GUILayout.Label("Detected Slave Lobby: " + detectedRoom, Theme.Label, Array.Empty<GUILayoutOption>());
+			GUILayout.Space(4f);
+			if (GUILayout.Button("Direct Join Slave Lobby", Theme.Primary, (GUILayoutOption[])(object)new GUILayoutOption[2] { GUILayout.Width(220f), GUILayout.Height(32f) }))
+			{
+				if (ModNet.JoinSlaveRoom())
+				{
+					Say("Connecting to Slave lobby...");
+				}
+				else
+				{
+					Say("Could not connect to Slave lobby");
+				}
+			}
+			GUILayout.Space(4f);
+		}
+		else
+		{
+			GUILayout.Label("Waiting for Slave to host or join a lobby...", Theme.Small, Array.Empty<GUILayoutOption>());
 		}
 
 		GUILayout.EndVertical();

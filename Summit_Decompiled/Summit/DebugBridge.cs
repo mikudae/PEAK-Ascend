@@ -1618,9 +1618,35 @@ public static class DebugBridge
 			case "screenshot":
 				return ActionScreenshot(p);
 
+			case "join_slave":
+				return ActionJoinSlave(p);
+
+			case "join_master":
+				return ActionJoinMaster(p);
+
 			default:
-				throw new ArgumentException($"Unknown action '{action}'. Valid actions: say, spawn, warp, warp_to, toggle, perm, deliver, screenshot.");
+				throw new ArgumentException($"Unknown action '{action}'. Valid actions: say, spawn, warp, warp_to, toggle, perm, deliver, screenshot, join_slave, join_master.");
 		}
+	}
+
+	private static string ActionJoinSlave(Dictionary<string, string> p)
+	{
+		bool ok = ModNet.JoinSlaveRoom();
+		return ToJson(new Dictionary<string, object>
+		{
+			{ "action", "join_slave" },
+			{ "success", ok }
+		});
+	}
+
+	private static string ActionJoinMaster(Dictionary<string, string> p)
+	{
+		bool ok = ModNet.JoinMasterRoom();
+		return ToJson(new Dictionary<string, object>
+		{
+			{ "action", "join_master" },
+			{ "success", ok }
+		});
 	}
 
 	private static string ActionSay(Dictionary<string, string> p)

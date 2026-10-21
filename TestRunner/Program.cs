@@ -224,6 +224,35 @@ internal class Program
         MethodInfo getInvMethod = masterModNet.GetMethod("GetPlayerInventory", BindingFlags.Public | BindingFlags.Static);
         AssertTrue(getInvMethod != null, "GetPlayerInventory method exists on ModNet");
 
+        // 11b. Direct Join Master/Slave Methods & Shared File Verification
+        FieldInfo sharedMasterFileField = masterModNet.GetField("SharedRoomFile", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue(sharedMasterFileField != null, "SharedRoomFile exists on ModNet");
+        FieldInfo sharedSlaveFileField = masterModNet.GetField("SharedSlaveRoomFile", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue(sharedSlaveFileField != null, "SharedSlaveRoomFile exists on ModNet");
+
+        MethodInfo getActiveMasterMethod = masterModNet.GetMethod("GetActiveMasterRoomInfo", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue(getActiveMasterMethod != null, "GetActiveMasterRoomInfo exists on ModNet");
+        MethodInfo getActiveSlaveMethod = masterModNet.GetMethod("GetActiveSlaveRoomInfo", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue(getActiveSlaveMethod != null, "GetActiveSlaveRoomInfo exists on ModNet");
+
+        MethodInfo joinMasterMethod = masterModNet.GetMethod("JoinMasterRoom", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue(joinMasterMethod != null, "JoinMasterRoom exists on ModNet");
+        MethodInfo joinSlaveMethod = masterModNet.GetMethod("JoinSlaveRoom", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue(joinSlaveMethod != null, "JoinSlaveRoom exists on ModNet");
+
+        string tempSlaveFile = (string)sharedSlaveFileField.GetValue(null);
+        try
+        {
+            File.WriteAllText(tempSlaveFile, "SLAVE_ROOM_999\neu\nAirport\nFriendScout");
+            string parsedInfo = (string)getActiveSlaveMethod.Invoke(null, null);
+            AssertEqual(parsedInfo, "SLAVE_ROOM_999 (FriendScout)", "GetActiveSlaveRoomInfo formats room and scout name");
+        }
+        finally
+        {
+            if (File.Exists(tempSlaveFile)) File.Delete(tempSlaveFile);
+        }
+        AssertEqual((string)getActiveSlaveMethod.Invoke(null, null), null, "GetActiveSlaveRoomInfo returns null when file is absent");
+
         // 12. DebugBridge Type Verification
         Type masterBridgeType = masterAsm.GetType("Summit.DebugBridge");
         Type slaveBridgeType = slaveAsm.GetType("Summit.DebugBridge");

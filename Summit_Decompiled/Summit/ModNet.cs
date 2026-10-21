@@ -597,6 +597,7 @@ internal static class ModNet
 			{
 				broadcastTimer = 0f;
 				BroadcastSlavePresence();
+				SaveActiveSlaveRoom();
 			}
 
 			if (cleanupTimer >= 2f)
@@ -629,11 +630,14 @@ internal static class ModNet
 	private static string lastSavedRoom = "";
 	public static readonly string SharedRoomFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "peak_active_room.txt");
 
+	private static string lastSavedSlaveRoom = "";
+	public static readonly string SharedSlaveRoomFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "peak_active_slave_room.txt");
+
 	public static void SaveActiveRoom()
 	{
 		try
 		{
-			if (IsPhotonConnected && PhotonNetwork.CurrentRoom != null)
+			if (IsPhotonConnected && PhotonNetwork.CurrentRoom != null && !string.IsNullOrEmpty(PhotonNetwork.CurrentRoom.Name))
 			{
 				string roomName = PhotonNetwork.CurrentRoom.Name;
 				string region = PhotonNetwork.CloudRegion ?? "";
@@ -651,12 +655,41 @@ internal static class ModNet
 		}
 	}
 
+	public static void SaveActiveSlaveRoom()
+	{
+		try
+		{
+			if (IsPhotonConnected && PhotonNetwork.CurrentRoom != null && !string.IsNullOrEmpty(PhotonNetwork.CurrentRoom.Name))
+			{
+				string roomName = PhotonNetwork.CurrentRoom.Name;
+				string region = PhotonNetwork.CloudRegion ?? "";
+				string scene = SceneManager.GetActiveScene().name;
+				string scout = (PhotonNetwork.LocalPlayer != null && !string.IsNullOrEmpty(PhotonNetwork.LocalPlayer.NickName))
+					? PhotonNetwork.LocalPlayer.NickName
+					: "Slave Scout";
+				string content = roomName + "\n" + region + "\n" + scene + "\n" + scout;
+				if (content != lastSavedSlaveRoom)
+				{
+					System.IO.File.WriteAllText(SharedSlaveRoomFile, content);
+					lastSavedSlaveRoom = content;
+				}
+			}
+		}
+		catch
+		{
+		}
+	}
+
 	public static string GetActiveMasterRoomInfo()
 	{
 		try
 		{
 			if (System.IO.File.Exists(SharedRoomFile))
 			{
+				if (DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(SharedRoomFile) > TimeSpan.FromMinutes(5))
+				{
+					return null;
+				}
 				string[] lines = System.IO.File.ReadAllLines(SharedRoomFile);
 				if (lines.Length >= 2 && !string.IsNullOrEmpty(lines[0]))
 				{
@@ -668,6 +701,57 @@ internal static class ModNet
 		{
 		}
 		return null;
+	}
+
+	public static string GetActiveSlaveRoomInfo()
+	{
+		try
+		{
+			if (System.IO.File.Exists(SharedSlaveRoomFile))
+			{
+				if (DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(SharedSlaveRoomFile) > TimeSpan.FromMinutes(5))
+				{
+					return null;
+				}
+				string[] lines = System.IO.File.ReadAllLines(SharedSlaveRoomFile);
+				if (lines.Length >= 2 && !string.IsNullOrEmpty(lines[0]))
+				{
+					string room = lines[0].Trim();
+					string scout = lines.Length > 3 ? lines[3].Trim() : "";
+					return string.IsNullOrEmpty(scout) ? room : (room + " (" + scout + ")");
+				}
+			}
+		}
+		catch
+		{
+		}
+		return null;
+	}
+
+	public static bool JoinRoomByDetails(string roomName, string region, string scene = "Airport")
+	{
+		try
+		{
+			if (string.IsNullOrEmpty(roomName)) return false;
+
+			JoinSpecificRoomState joinState = GameHandler.GetService<ConnectionService>().StateMachine.SwitchState<JoinSpecificRoomState>();
+			if (joinState == null) return false;
+
+			joinState.RoomName = roomName;
+			joinState.RegionToJoin = region;
+
+			RetrievableResourceSingleton<LoadingScreenHandler>.Instance.Load(
+				LoadingScreen.LoadingScreenType.Basic,
+				null,
+				RetrievableResourceSingleton<LoadingScreenHandler>.Instance.LoadSceneProcess(scene, false, true)
+			);
+			return true;
+		}
+		catch (Exception ex)
+		{
+			Debug.LogError("[ModNet] Failed to join room '" + roomName + "': " + ex);
+			return false;
+		}
 	}
 
 	public static bool JoinMasterRoom()
@@ -684,22 +768,34 @@ internal static class ModNet
 			string region = lines[1].Trim();
 			string scene = lines.Length > 2 ? lines[2].Trim() : "Airport";
 
-			if (string.IsNullOrEmpty(roomName)) return false;
-
-			JoinSpecificRoomState joinState = GameHandler.GetService<ConnectionService>().StateMachine.SwitchState<JoinSpecificRoomState>();
-			joinState.RoomName = roomName;
-			joinState.RegionToJoin = region;
-
-			RetrievableResourceSingleton<LoadingScreenHandler>.Instance.Load(
-				LoadingScreen.LoadingScreenType.Basic,
-				null,
-				RetrievableResourceSingleton<LoadingScreenHandler>.Instance.LoadSceneProcess(scene, false, true)
-			);
-			return true;
+			return JoinRoomByDetails(roomName, region, scene);
 		}
 		catch (Exception ex)
 		{
 			Debug.LogError("[ModNet] Failed to join master room: " + ex);
+			return false;
+		}
+	}
+
+	public static bool JoinSlaveRoom()
+	{
+		try
+		{
+			if (!System.IO.File.Exists(SharedSlaveRoomFile))
+			{
+				return false;
+			}
+			string[] lines = System.IO.File.ReadAllLines(SharedSlaveRoomFile);
+			if (lines.Length < 2) return false;
+			string roomName = lines[0].Trim();
+			string region = lines[1].Trim();
+			string scene = lines.Length > 2 ? lines[2].Trim() : "Airport";
+
+			return JoinRoomByDetails(roomName, region, scene);
+		}
+		catch (Exception ex)
+		{
+			Debug.LogError("[ModNet] Failed to join slave room: " + ex);
 			return false;
 		}
 	}
