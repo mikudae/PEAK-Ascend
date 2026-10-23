@@ -99,6 +99,21 @@ internal static class Features
 		Say(Lang.T("Revived where you went down"));
 	}
 
+	public static void KillSelf()
+	{
+		if ((UnityEngine.Object)(object)Me == (UnityEngine.Object)null)
+		{
+			return;
+		}
+		if (Me.data.dead)
+		{
+			Say(Lang.T("You are already dead"));
+			return;
+		}
+		Character.Die();
+		Say(Lang.T("Killed self"));
+	}
+
 	public static void Warp(Vector3 position, string what)
 	{
 		//IL_0018: Unknown result type (might be due to invalid IL or missing references)

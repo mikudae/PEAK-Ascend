@@ -1624,8 +1624,72 @@ public static class DebugBridge
 			case "join_master":
 				return ActionJoinMaster(p);
 
+			case "kill":
+			case "kill_self":
+				return ActionKillSelf(p);
+
+			case "heal":
+				return ActionHeal(p);
+
+			case "bonus_stamina":
+				return ActionBonusStamina(p);
+
+			case "revive":
+				return ActionRevive(p);
+
+			case "warp_campfire":
+				return ActionWarpCampfire(p);
+
+			case "warp_statue":
+				return ActionWarpStatue(p);
+
+			case "warp_aim":
+				return ActionWarpAim(p);
+
+			case "save_spot":
+				return ActionSaveSpot(p);
+
+			case "go_spot":
+				return ActionGoSpot(p);
+
+			case "freecam":
+				return ActionFreeCam(p);
+
+			case "set_time":
+				return ActionSetTime(p);
+
+			case "next_section":
+				return ActionNextSection(p);
+
+			case "trip":
+				return ActionTrip(p);
+
+			case "launch":
+				return ActionLaunch(p);
+
+			case "make_jump":
+				return ActionMakeJump(p);
+
+			case "bring":
+				return ActionBring(p);
+
+			case "swap":
+				return ActionSwap(p);
+
+			case "drop_on":
+				return ActionDropOn(p);
+
+			case "heal_other":
+				return ActionHealOther(p);
+
+			case "revive_other":
+				return ActionReviveOther(p);
+
+			case "hand_item":
+				return ActionHandItem(p);
+
 			default:
-				throw new ArgumentException($"Unknown action '{action}'. Valid actions: say, spawn, warp, warp_to, toggle, perm, deliver, screenshot, join_slave, join_master.");
+				throw new ArgumentException($"Unknown action '{action}'. Valid actions: say, spawn, warp, warp_to, toggle, perm, deliver, screenshot, join_slave, join_master, kill_self, heal, bonus_stamina, revive, warp_campfire, warp_statue, warp_aim, save_spot, go_spot, freecam, set_time, next_section, trip, launch, make_jump, bring, swap, drop_on, heal_other, revive_other, hand_item.");
 		}
 	}
 
@@ -2033,6 +2097,44 @@ public static class DebugBridge
 
 			default:
 				// Fallback to reflection on State class fields matching name with or without underscores
+				FieldInfo floatField = null;
+				foreach (FieldInfo f in typeof(State).GetFields(BindingFlags.Public | BindingFlags.Static))
+				{
+					if (f.FieldType == typeof(float) &&
+						(string.Equals(f.Name, cheat, StringComparison.OrdinalIgnoreCase) ||
+						 string.Equals(f.Name.Replace("_", ""), normCheat, StringComparison.OrdinalIgnoreCase)))
+					{
+						floatField = f;
+						break;
+					}
+				}
+				if (floatField != null)
+				{
+					if (!string.IsNullOrEmpty(valStr) && float.TryParse(valStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float fVal))
+					{
+						floatField.SetValue(null, fVal);
+						SafeMenuSay(Lang.F("{0}: {1:0.0}", cheat, fVal));
+						return ToJson(new Dictionary<string, object>
+						{
+							["success"] = true,
+							["action"] = "toggle",
+							["cheat"] = cheat,
+							["value"] = fVal
+						});
+					}
+					else
+					{
+						float curVal = (float)floatField.GetValue(null);
+						return ToJson(new Dictionary<string, object>
+						{
+							["success"] = true,
+							["action"] = "toggle",
+							["cheat"] = cheat,
+							["value"] = curVal
+						});
+					}
+				}
+
 				FieldInfo field = null;
 				foreach (FieldInfo f in typeof(State).GetFields(BindingFlags.Public | BindingFlags.Static))
 				{
@@ -2053,7 +2155,7 @@ public static class DebugBridge
 				}
 				else
 				{
-					throw new ArgumentException($"Unknown cheat '{cheat}'. Supported: God, InfStamina, Fly, NoFall, NoClip, NoWeight, AirJump, etc.");
+					throw new ArgumentException($"Unknown cheat '{cheat}'. Supported: God, InfStamina, Fly, NoFall, NoClip, NoWeight, AirJump, Speed, Jump, Climb, FlySpeed, etc.");
 				}
 				break;
 		}
@@ -2071,11 +2173,24 @@ public static class DebugBridge
 
 	private static string ActionPerm(Dictionary<string, string> p)
 	{
+		bool clearOverride = false;
+		if (p.TryGetValue("allow", out string allowStr) || p.TryGetValue("value", out allowStr) || p.TryGetValue("grant", out allowStr))
+		{
+			if (allowStr.Equals("clear", StringComparison.OrdinalIgnoreCase) || allowStr.Equals("reset", StringComparison.OrdinalIgnoreCase))
+			{
+				clearOverride = true;
+			}
+		}
+
 		if (!p.TryGetValue("section", out string section) && !p.TryGetValue("sec", out section))
 		{
-			throw new ArgumentException("Missing required 'section' parameter.");
+			if (!clearOverride)
+			{
+				throw new ArgumentException("Missing required 'section' parameter.");
+			}
+			section = "All";
 		}
-		if (string.IsNullOrEmpty(section))
+		if (string.IsNullOrEmpty(section) && !clearOverride)
 		{
 			throw new ArgumentException("Missing required 'section' parameter.");
 		}
@@ -2090,21 +2205,26 @@ public static class DebugBridge
 			});
 		}
 
-		// Normalize section name against ManageableSections
-		string matchedSection = null;
-		foreach (string s in ModNet.ManageableSections)
+		// Normalize section names against ManageableSections (supports comma-separated list)
+		List<string> targetSections = new List<string>();
+		string[] requestedParts = (section ?? "").Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+		foreach (string part in requestedParts)
 		{
-			if (string.Equals(s, section, StringComparison.OrdinalIgnoreCase))
+			foreach (string s in ModNet.ManageableSections)
 			{
-				matchedSection = s;
-				break;
+				if (string.Equals(s, part, StringComparison.OrdinalIgnoreCase))
+				{
+					targetSections.Add(s);
+					break;
+				}
 			}
 		}
 
-		if (matchedSection == null)
+		if (targetSections.Count == 0 && !clearOverride)
 		{
 			throw new ArgumentException($"Invalid section '{section}'. Valid sections: {string.Join(", ", ModNet.ManageableSections)}.");
 		}
+		string matchedSection = targetSections.Count > 0 ? string.Join(",", targetSections) : "All";
 
 		int targetActor = 0;
 		if (p.TryGetValue("actor", out string actorStr) || p.TryGetValue("target", out actorStr))
@@ -2148,8 +2268,7 @@ public static class DebugBridge
 		}
 
 		bool? allowVal = null;
-		bool clearOverride = false;
-		if (p.TryGetValue("allow", out string allowStr) || p.TryGetValue("value", out allowStr) || p.TryGetValue("grant", out allowStr))
+		if (p.TryGetValue("allow", out allowStr) || p.TryGetValue("value", out allowStr) || p.TryGetValue("grant", out allowStr))
 		{
 			if (allowStr.Equals("clear", StringComparison.OrdinalIgnoreCase) || allowStr.Equals("reset", StringComparison.OrdinalIgnoreCase))
 			{
@@ -2172,8 +2291,8 @@ public static class DebugBridge
 			if (clearOverride)
 			{
 				ModNet.ClearSlaveOverride(targetActor);
-				finalAllow = ModNet.IsSlaveSectionAllowed(targetActor, matchedSection);
-				LogPhoton($"Cleared override for slave {targetActor}; {matchedSection} is now {finalAllow}");
+				finalAllow = targetSections.Count > 0 ? ModNet.IsSlaveSectionAllowed(targetActor, targetSections[0]) : true;
+				LogPhoton($"Cleared override for slave {targetActor}");
 			}
 			else if (allowVal.HasValue)
 			{
@@ -2182,16 +2301,22 @@ public static class DebugBridge
 					set = new HashSet<string>(ModNet.GlobalAllowedSections);
 					ModNet.SlaveOverrides[targetActor] = set;
 				}
-				if (allowVal.Value) set.Add(matchedSection);
-				else set.Remove(matchedSection);
+				foreach (var s in targetSections)
+				{
+					if (allowVal.Value) set.Add(s);
+					else set.Remove(s);
+				}
 				ModNet.SyncSlavePermissions(targetActor);
 				finalAllow = allowVal.Value;
 				LogPhoton($"Perm updated for slave {targetActor}: {matchedSection} = {finalAllow}");
 			}
 			else
 			{
-				ModNet.ToggleSlaveSection(targetActor, matchedSection);
-				finalAllow = ModNet.IsSlaveSectionAllowed(targetActor, matchedSection);
+				foreach (var s in targetSections)
+				{
+					ModNet.ToggleSlaveSection(targetActor, s);
+				}
+				finalAllow = targetSections.Count > 0 ? ModNet.IsSlaveSectionAllowed(targetActor, targetSections[0]) : false;
 				LogPhoton($"Perm toggled for slave {targetActor}: {matchedSection} = {finalAllow}");
 			}
 		}
@@ -2199,15 +2324,21 @@ public static class DebugBridge
 		{
 			if (allowVal.HasValue)
 			{
-				if (allowVal.Value) ModNet.GlobalAllowedSections.Add(matchedSection);
-				else ModNet.GlobalAllowedSections.Remove(matchedSection);
+				foreach (var s in targetSections)
+				{
+					if (allowVal.Value) ModNet.GlobalAllowedSections.Add(s);
+					else ModNet.GlobalAllowedSections.Remove(s);
+				}
 				ModNet.SyncGlobalPermissions();
 				finalAllow = allowVal.Value;
 			}
 			else
 			{
-				ModNet.ToggleGlobalSection(matchedSection);
-				finalAllow = ModNet.IsGlobalSectionAllowed(matchedSection);
+				foreach (var s in targetSections)
+				{
+					ModNet.ToggleGlobalSection(s);
+				}
+				finalAllow = targetSections.Count > 0 ? ModNet.IsGlobalSectionAllowed(targetSections[0]) : false;
 			}
 			LogPhoton($"Global perm updated: {matchedSection} = {finalAllow}");
 		}
@@ -2468,11 +2599,524 @@ public static class DebugBridge
 		});
 	}
 
+	private static Character ResolveTargetCharacter(Dictionary<string, string> p)
+	{
+		if (p != null && p.TryGetValue("actor", out string actorStr) && int.TryParse(actorStr, out int actorNum) && actorNum > 0)
+		{
+			if (PlayerHandler.TryGetCharacter(actorNum, out var c) && c != null) return c;
+			foreach (var other in Features.Others())
+			{
+				if (other != null)
+				{
+					var pv = other.GetComponent<PhotonView>() ?? (other.refs != null ? other.refs.view : null);
+					if (pv != null && pv.Owner != null && pv.Owner.ActorNumber == actorNum) return other;
+				}
+			}
+		}
+
+		var others = Features.Others();
+		if (others != null && others.Count > 0)
+		{
+			foreach (var c in others)
+			{
+				if (c != null) return c;
+			}
+		}
+		return null;
+	}
+
+	private static Item ResolveItemByName(string name)
+	{
+		if (string.IsNullOrWhiteSpace(name)) return null;
+		var items = Features.ItemList();
+		if (items == null) return null;
+		return items.Find(x => x != null && (
+			((UnityEngine.Object)x).name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+			(x.GetName() != null && x.GetName().Equals(name, StringComparison.OrdinalIgnoreCase)) ||
+			((UnityEngine.Object)x).name.Replace(" ", "").Equals(name.Replace(" ", "").Replace("-", ""), StringComparison.OrdinalIgnoreCase) ||
+			(x.GetName() != null && x.GetName().Replace(" ", "").Equals(name.Replace(" ", "").Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+		));
+	}
+
+	private static string ActionKillSelf(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "kill_self",
+				["error"] = "Cannot kill self: local player is not in-game."
+			});
+		}
+		Features.KillSelf();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "kill_self",
+			["dead"] = (Features.Me != null && Features.Me.data != null) ? Features.Me.data.dead : false
+		});
+	}
+
+	private static string ActionHeal(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "heal",
+				["error"] = "Cannot heal: local player is not in-game."
+			});
+		}
+		Features.Heal();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "heal"
+		});
+	}
+
+	private static string ActionBonusStamina(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "bonus_stamina",
+				["error"] = "Cannot give bonus stamina: local player is not in-game."
+			});
+		}
+		Features.BonusStamina();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "bonus_stamina"
+		});
+	}
+
+	private static string ActionRevive(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "revive",
+				["error"] = "Cannot revive: local player is not in-game."
+			});
+		}
+		Features.Revive();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "revive"
+		});
+	}
+
+	private static string ActionWarpCampfire(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "warp_campfire",
+				["error"] = "Cannot warp to campfire: local player is not in-game."
+			});
+		}
+		Features.WarpToCampfire();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "warp_campfire"
+		});
+	}
+
+	private static string ActionWarpStatue(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "warp_statue",
+				["error"] = "Cannot warp to statue: local player is not in-game."
+			});
+		}
+		Features.WarpToStatue();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "warp_statue"
+		});
+	}
+
+	private static string ActionWarpAim(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "warp_aim",
+				["error"] = "Cannot warp to aim: local player is not in-game."
+			});
+		}
+		Features.WarpToAim();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "warp_aim"
+		});
+	}
+
+	private static string ActionSaveSpot(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "save_spot",
+				["error"] = "Cannot save spot: local player is not in-game."
+			});
+		}
+		int spot = 1;
+		if (p != null && p.TryGetValue("spot", out string s) && int.TryParse(s, out int parsed)) spot = parsed;
+		Features.SaveSpot(spot);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "save_spot",
+			["spot"] = spot
+		});
+	}
+
+	private static string ActionGoSpot(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "go_spot",
+				["error"] = "Cannot go to spot: local player is not in-game."
+			});
+		}
+		int spot = 1;
+		if (p != null && p.TryGetValue("spot", out string s) && int.TryParse(s, out int parsed)) spot = parsed;
+		Features.GoSpot(spot);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "go_spot",
+			["spot"] = spot
+		});
+	}
+
+	private static string ActionFreeCam(Dictionary<string, string> p)
+	{
+		if (!SafeInGame())
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "freecam",
+				["error"] = "Cannot toggle freecam: local player is not in-game."
+			});
+		}
+		bool on = !Live.FreeCam;
+		if (p != null && p.TryGetValue("enabled", out string enStr) && bool.TryParse(enStr, out bool parsed)) on = parsed;
+		Features.SetFreeCam(on);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "freecam",
+			["enabled"] = on
+		});
+	}
+
+	private static string ActionSetTime(Dictionary<string, string> p)
+	{
+		if (!SafeInGame())
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "set_time",
+				["error"] = "Cannot set time: local player is not in-game."
+			});
+		}
+		float hour = 12f;
+		string what = "noon";
+		if (p != null)
+		{
+			if (p.TryGetValue("preset", out string preset))
+			{
+				switch (preset.ToLowerInvariant())
+				{
+					case "dawn": hour = 6f; what = "dawn"; break;
+					case "noon": hour = 12f; what = "noon"; break;
+					case "dusk": hour = 18f; what = "dusk"; break;
+					case "midnight": hour = 0f; what = "midnight"; break;
+				}
+			}
+			else if (p.TryGetValue("hour", out string hStr) && float.TryParse(hStr, out float h))
+			{
+				hour = h;
+				what = $"{hour:0.0}h";
+			}
+		}
+		Features.SetTime(hour, what);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "set_time",
+			["hour"] = hour
+		});
+	}
+
+	private static string ActionNextSection(Dictionary<string, string> p)
+	{
+		if (!SafeInGame())
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "next_section",
+				["error"] = "Cannot advance section: local player is not in-game."
+			});
+		}
+		Features.NextSection();
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "next_section"
+		});
+	}
+
+	private static string ActionTrip(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "trip",
+				["error"] = "Cannot trip: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to trip.");
+		float sec = 3f;
+		if (p != null && p.TryGetValue("seconds", out string sStr) && float.TryParse(sStr, out float parsed)) sec = parsed;
+		Features.Trip(target, sec);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "trip",
+			["seconds"] = sec
+		});
+	}
+
+	private static string ActionLaunch(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "launch",
+				["error"] = "Cannot launch: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to launch.");
+		Vector3 dir = Vector3.up;
+		float speed = 15f;
+		if (p != null)
+		{
+			if (p.TryGetValue("speed", out string spStr) && float.TryParse(spStr, out float sp)) speed = sp;
+			if (p.TryGetValue("x", out string xStr) && float.TryParse(xStr, out float x) &&
+			    p.TryGetValue("y", out string yStr) && float.TryParse(yStr, out float y) &&
+			    p.TryGetValue("z", out string zStr) && float.TryParse(zStr, out float z))
+			{
+				dir = new Vector3(x, y, z);
+			}
+		}
+		Features.Launch(target, dir, speed);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "launch",
+			["speed"] = speed
+		});
+	}
+
+	private static string ActionMakeJump(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "make_jump",
+				["error"] = "Cannot make jump: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to jump.");
+		Features.MakeJump(target);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "make_jump"
+		});
+	}
+
+	private static string ActionBring(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "bring",
+				["error"] = "Cannot bring: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to bring.");
+		Features.Bring(target);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "bring"
+		});
+	}
+
+	private static string ActionSwap(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "swap",
+				["error"] = "Cannot swap: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to swap.");
+		Features.Swap(target);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "swap"
+		});
+	}
+
+	private static string ActionDropOn(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "drop_on",
+				["error"] = "Cannot drop item: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to drop item on.");
+		string itemName = (p != null && p.TryGetValue("item", out string it)) ? it : "Compass";
+		Item item = ResolveItemByName(itemName);
+		if (item == null) throw new ArgumentException($"Item '{itemName}' not found in item registry.");
+		Features.DropOn(target, item);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "drop_on",
+			["item"] = itemName
+		});
+	}
+
+	private static string ActionHealOther(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "heal_other",
+				["error"] = "Cannot heal other: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to heal.");
+		bool ok = Features.HealOther(target);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = ok,
+			["action"] = "heal_other"
+		});
+	}
+
+	private static string ActionReviveOther(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "revive_other",
+				["error"] = "Cannot revive other: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to revive.");
+		bool byMe = false;
+		if (p != null && p.TryGetValue("by_me", out string bm) && bool.TryParse(bm, out bool parsed)) byMe = parsed;
+		Features.ReviveOther(target, byMe);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "revive_other",
+			["by_me"] = byMe
+		});
+	}
+
+	private static string ActionHandItem(Dictionary<string, string> p)
+	{
+		if (!SafeInGame() || (UnityEngine.Object)(object)SafeLocalCharacter() == (UnityEngine.Object)null)
+		{
+			return ToJson(new Dictionary<string, object>
+			{
+				["success"] = false,
+				["action"] = "hand_item",
+				["error"] = "Cannot hand item: local player is not in-game."
+			});
+		}
+		Character target = ResolveTargetCharacter(p);
+		if (target == null) throw new InvalidOperationException("No target scout found to hand item.");
+		string itemName = (p != null && p.TryGetValue("item", out string it)) ? it : "Compass";
+		Item item = ResolveItemByName(itemName);
+		if (item == null) throw new ArgumentException($"Item '{itemName}' not found in item registry.");
+		Features.HandItem(target, item);
+		return ToJson(new Dictionary<string, object>
+		{
+			["success"] = true,
+			["action"] = "hand_item",
+			["item"] = itemName
+		});
+	}
+
 	private static string ActionScreenshot(Dictionary<string, string> p)
 	{
 		string defaultPath = Path.Combine(Path.GetTempPath(), (ModNet.Role == ModNet.ModRole.Master ? "peak_screenshot_master.png" : "peak_screenshot_slave.png"));
 		string targetPath = (p != null && p.TryGetValue("path", out string customPath) && !string.IsNullOrWhiteSpace(customPath)) ? customPath : defaultPath;
-		string genericPath = Path.Combine(Path.GetTempPath(), "peak_screenshot.png");
 
 		try
 		{
@@ -2483,15 +3127,8 @@ public static class DebugBridge
 			}
 
 			// ScreenCapture writes image to disk at end of frame
+			// Capture ONLY to targetPath (calling ScreenCapture twice in 1 frame overrides/cancels the previous capture)
 			ScreenCapture.CaptureScreenshot(targetPath);
-			try
-			{
-				if (targetPath != genericPath)
-				{
-					ScreenCapture.CaptureScreenshot(genericPath);
-				}
-			}
-			catch {}
 
 			if (p != null)
 			{
@@ -2512,7 +3149,6 @@ public static class DebugBridge
 				["success"] = true,
 				["action"] = "screenshot",
 				["path"] = targetPath,
-				["generic_path"] = genericPath,
 				["width"] = width,
 				["height"] = height,
 				["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()

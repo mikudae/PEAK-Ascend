@@ -157,7 +157,14 @@ internal class Program
         CheckBound("SaveSpot", "Teleport");
         CheckBound("GoSpot", "Teleport");
         CheckBound("Heal", "Scout");
+        CheckBound("KillSelf", "Scout");
         CheckBound("FreeCam", "Camera");
+
+        // Verify Features.KillSelf method exists on Slave
+        Type slaveFeatures = slaveAsm.GetType("Summit.Features");
+        AssertTrue(slaveFeatures != null, "Features type found in Summit_Slave.dll");
+        MethodInfo slaveKillSelf = slaveFeatures.GetMethod("KillSelf", BindingFlags.Public | BindingFlags.Static);
+        AssertTrue(slaveKillSelf != null, "Features.KillSelf method exists on Slave");
 
         // 8. Test Master Binary
         var masterContext = new System.Runtime.Loader.AssemblyLoadContext("MasterContext");
@@ -558,6 +565,41 @@ internal class Program
             var nanWarpContent = new System.Net.Http.StringContent("action=warp&x=NaN&y=10&z=20", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
             var nanWarpResp = http.PostAsync(masterUrl + "/action", nanWarpContent).GetAwaiter().GetResult();
             AssertEqual((int)nanWarpResp.StatusCode, 400, "POST /action (warp with NaN coordinate) returns HTTP 400");
+
+            // Test POST /action kill_self
+            var killSelfContent = new System.Net.Http.StringContent("action=kill_self", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
+            var killSelfResp = http.PostAsync(masterUrl + "/action", killSelfContent).GetAwaiter().GetResult();
+            AssertEqual((int)killSelfResp.StatusCode, 200, "POST /action (kill_self) returns HTTP 200");
+            string killSelfBody = killSelfResp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            AssertTrue(killSelfBody.Contains("\"success\":false"), "POST /action kill_self reports success:false when offline");
+
+            // Test POST /action heal
+            var healContent = new System.Net.Http.StringContent("action=heal", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
+            var healResp = http.PostAsync(masterUrl + "/action", healContent).GetAwaiter().GetResult();
+            AssertEqual((int)healResp.StatusCode, 200, "POST /action (heal) returns HTTP 200");
+            string healBody = healResp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            AssertTrue(healBody.Contains("\"success\":false"), "POST /action heal reports success:false when offline");
+
+            // Test POST /action bonus_stamina
+            var bonusStamContent = new System.Net.Http.StringContent("action=bonus_stamina", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
+            var bonusStamResp = http.PostAsync(masterUrl + "/action", bonusStamContent).GetAwaiter().GetResult();
+            AssertEqual((int)bonusStamResp.StatusCode, 200, "POST /action (bonus_stamina) returns HTTP 200");
+            string bonusStamBody = bonusStamResp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            AssertTrue(bonusStamBody.Contains("\"success\":false"), "POST /action bonus_stamina reports success:false when offline");
+
+            // Test POST /action freecam
+            var freecamContent = new System.Net.Http.StringContent("action=freecam&enabled=true", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
+            var freecamResp = http.PostAsync(masterUrl + "/action", freecamContent).GetAwaiter().GetResult();
+            AssertEqual((int)freecamResp.StatusCode, 200, "POST /action (freecam) returns HTTP 200");
+            string freecamBody = freecamResp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            AssertTrue(freecamBody.Contains("\"success\":false"), "POST /action freecam reports success:false when offline");
+
+            // Test POST /action set_time
+            var setTimeContent = new System.Net.Http.StringContent("action=set_time&preset=noon", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
+            var setTimeResp = http.PostAsync(masterUrl + "/action", setTimeContent).GetAwaiter().GetResult();
+            AssertEqual((int)setTimeResp.StatusCode, 200, "POST /action (set_time) returns HTTP 200");
+            string setTimeBody = setTimeResp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            AssertTrue(setTimeBody.Contains("\"success\":false"), "POST /action set_time reports success:false when offline");
 
             // Test POST /action missing required param on say returns 400
             var missingMsgContent = new System.Net.Http.StringContent("action=say", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");

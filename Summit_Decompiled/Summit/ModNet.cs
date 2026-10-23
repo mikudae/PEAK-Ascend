@@ -285,34 +285,25 @@ internal static class ModNet
 
 					if (targetPv != null)
 					{
-						if (PhotonNetwork.IsMasterClient)
+						Item spawnedItem = spawnedObj.GetComponent<Item>();
+						if (spawnedItem != null)
 						{
-							Item spawnedItem = spawnedObj.GetComponent<Item>();
-							if (spawnedItem != null)
-							{
-								spawnedItem.RequestPickup(targetPv);
-							}
+							spawnedItem.RequestPickup(targetPv);
 						}
-						else
+
+						// If hands destination and target has items handler, also notify MasterClient
+						if (destination == "Hands" && !PhotonNetwork.IsMasterClient && targetChar.refs != null && targetChar.refs.items != null)
 						{
-							PhotonView itemPv = spawnedObj.GetComponent<PhotonView>();
-							if (itemPv != null)
+							try
 							{
-								itemPv.RPC("RequestPickup", RpcTarget.MasterClient, targetPv);
+								targetChar.refs.items.photonView.RPC("RPC_SpawnItemInHandMaster", RpcTarget.MasterClient, resolvedPrefab);
 							}
-							else
-							{
-								Item spawnedItem = spawnedObj.GetComponent<Item>();
-								if (spawnedItem != null)
-								{
-									spawnedItem.RequestPickup(targetPv);
-								}
-							}
+							catch {}
 						}
 					}
 
 					// Owner authoritatively destroys the spawned object after pickup is dispatched
-					CleanupSpawnedItem(spawnedObj, 0.35f);
+					CleanupSpawnedItem(spawnedObj, 0.75f);
 				}
 			}
 			return true;
@@ -324,7 +315,7 @@ internal static class ModNet
 		}
 	}
 
-	public static void CleanupSpawnedItem(GameObject obj, float delay = 0.35f)
+	public static void CleanupSpawnedItem(GameObject obj, float delay = 0.75f)
 	{
 		if (obj == null) return;
 		try
@@ -365,7 +356,7 @@ internal static class ModNet
 
 	private static System.Collections.IEnumerator DestroySpawnedItemDelayed(GameObject obj, float delay)
 	{
-		yield return new WaitForSeconds(delay);
+		yield return new WaitForSecondsRealtime(delay);
 		DestroySpawnedItemDirect(obj);
 	}
 

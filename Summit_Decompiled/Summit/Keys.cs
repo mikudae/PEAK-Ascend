@@ -123,7 +123,7 @@ internal static class Keys
 		{
 			return "Teleport";
 		}
-		if (b.Id == "Heal")
+		if (b.Id == "Heal" || b.Id == "KillSelf")
 		{
 			return "Scout";
 		}

@@ -235,6 +235,10 @@ internal static class Lang
 		t["Bonus stamina"] = new string[2] { "Resistencia extra", "额外体力" };
 		t["Brings you back where you went down. The game drops what you were carrying when it revives a scout."] = new string[2] { "Te devuelve donde caíste. El juego suelta lo que llevabas al revivir a un explorador.", "在你倒下的位置复活。游戏在复活童子军时会掉落其携带的物品。" };
 		t["Revive me"] = new string[2] { "Revivirme", "复活自己" };
+		t["Instantly kills your scout."] = new string[2] { "Mata instantáneamente a tu explorador.", "立即击杀自己的童子军。" };
+		t["Kill self"] = new string[2] { "Suicidarse", "击杀自己" };
+		t["You are already dead"] = new string[2] { "Ya estás muerto", "你已经阵亡了" };
+		t["Killed self"] = new string[2] { "Te has suicidado", "已自杀" };
 		t["Aim first, then open the menu and press the button. It also has a shortcut key on the About page."] = new string[2] { "Apunta primero, luego abre el menú y pulsa el botón. También tiene un atajo de teclado en la página Acerca de.", "先瞄准，再打开菜单并点击按钮。也可以在“关于”页面为它设置快捷键。" };
 		t["To where I am looking"] = new string[2] { "A donde estoy mirando", "传送到视线所指处" };
 		t["The campfire and the scout statue of the part of the mountain you are on."] = new string[2] { "La hoguera y la estatua de explorador de la parte de la montaña en la que estás.", "你所在山段的营火和童子军雕像。" };

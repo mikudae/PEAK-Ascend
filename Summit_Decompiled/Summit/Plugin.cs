@@ -54,6 +54,13 @@ public class Plugin : BaseUnityPlugin
 				Features.Heal();
 			}
 		});
+		Keys.Job("KillSelf", "Kill self", delegate
+		{
+			if (Features.InGame)
+			{
+				Features.KillSelf();
+			}
+		});
 		Keys.Job("FreeCam", "Free camera on and off", delegate
 		{
 			if (Features.InGame)

@@ -298,6 +298,10 @@ public class Menu : MonoBehaviour
 		{
 			Features.Revive();
 		}, "Revive me");
+		Bt("kill_self", "Instantly kills your scout.", delegate
+		{
+			Features.KillSelf();
+		}, "Kill self");
 		Card("Scout", "Cosmetics", 1);
 		Sw("Cosmetics", "Every cosmetic, for this session", "Open your passport and pick anything. Nothing is written to Steam, and the locks are back the next time you start the game.");
 		Cu("forever", "Unlock every cosmetic for good", "The game decides what you own by asking Steam for your achievements. Keeping cosmetics means those achievements really go on your Steam profile, and the ascent levels they need are opened too. There is no taking it back.", DrawForever);
@@ -2952,7 +2956,7 @@ public class Menu : MonoBehaviour
 			GUILayout.BeginVertical(Theme.Panel, GUILayout.ExpandWidth(true));
 			GUILayout.Label(title, Theme.Big, GUILayout.ExpandWidth(true));
 
-			if (!isMe && ModNet.Role == ModNet.ModRole.Master && picked != null && actor > 0)
+			if (!isMe && picked != null && actor > 0)
 			{
 				string realPrefab = (picked.What is Item it && (UnityEngine.Object)it != null) ? ((UnityEngine.Object)it).name : picked.Name;
 				GUILayout.Space(2f);
