@@ -2030,18 +2030,59 @@ public static class DebugBridge
 		}
 
 		string normCheat = cheat.Replace("_", "").Replace("-", "").Replace(" ", "").Trim().ToLowerInvariant();
-		bool? explicitValue = null;
-		if (p.TryGetValue("value", out string valStr) || p.TryGetValue("allow", out valStr) ||
-		    p.TryGetValue("enable", out valStr) || p.TryGetValue("enabled", out valStr) ||
-		    p.TryGetValue("state", out valStr))
+		string valStr = null;
+		p.TryGetValue("value", out valStr);
+		if (string.IsNullOrEmpty(valStr)) p.TryGetValue("allow", out valStr);
+		if (string.IsNullOrEmpty(valStr)) p.TryGetValue("enable", out valStr);
+		if (string.IsNullOrEmpty(valStr)) p.TryGetValue("enabled", out valStr);
+		if (string.IsNullOrEmpty(valStr)) p.TryGetValue("state", out valStr);
+
+		// Check float multiplier fields first (Speed, Jump, Climb, FlySpeed, Reach, RopeLength, CamDistance, Fov)
+		FieldInfo floatField = null;
+		foreach (FieldInfo f in typeof(State).GetFields(BindingFlags.Public | BindingFlags.Static))
 		{
-			if (!string.IsNullOrEmpty(valStr))
+			if (f.FieldType == typeof(float) &&
+				(string.Equals(f.Name, cheat, StringComparison.OrdinalIgnoreCase) ||
+				 string.Equals(f.Name.Replace("_", ""), normCheat, StringComparison.OrdinalIgnoreCase)))
 			{
-				explicitValue = ParseFlexibleBool(valStr);
-				if (!explicitValue.HasValue)
+				floatField = f;
+				break;
+			}
+		}
+		if (floatField != null)
+		{
+			if (!string.IsNullOrEmpty(valStr) && float.TryParse(valStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float fVal))
+			{
+				floatField.SetValue(null, fVal);
+				SafeMenuSay(Lang.F("{0}: {1:0.0}", cheat, fVal));
+				return ToJson(new Dictionary<string, object>
 				{
-					throw new ArgumentException($"Invalid boolean value '{valStr}'. Expected true/false, 1/0, yes/no, on/off.");
-				}
+					["success"] = true,
+					["action"] = "toggle",
+					["cheat"] = cheat,
+					["value"] = fVal
+				});
+			}
+			else
+			{
+				float curVal = (float)floatField.GetValue(null);
+				return ToJson(new Dictionary<string, object>
+				{
+					["success"] = true,
+					["action"] = "toggle",
+					["cheat"] = cheat,
+					["value"] = curVal
+				});
+			}
+		}
+
+		bool? explicitValue = null;
+		if (!string.IsNullOrEmpty(valStr))
+		{
+			explicitValue = ParseFlexibleBool(valStr);
+			if (!explicitValue.HasValue)
+			{
+				throw new ArgumentException($"Invalid boolean value '{valStr}'. Expected true/false, 1/0, yes/no, on/off.");
 			}
 		}
 
@@ -2097,44 +2138,6 @@ public static class DebugBridge
 
 			default:
 				// Fallback to reflection on State class fields matching name with or without underscores
-				FieldInfo floatField = null;
-				foreach (FieldInfo f in typeof(State).GetFields(BindingFlags.Public | BindingFlags.Static))
-				{
-					if (f.FieldType == typeof(float) &&
-						(string.Equals(f.Name, cheat, StringComparison.OrdinalIgnoreCase) ||
-						 string.Equals(f.Name.Replace("_", ""), normCheat, StringComparison.OrdinalIgnoreCase)))
-					{
-						floatField = f;
-						break;
-					}
-				}
-				if (floatField != null)
-				{
-					if (!string.IsNullOrEmpty(valStr) && float.TryParse(valStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float fVal))
-					{
-						floatField.SetValue(null, fVal);
-						SafeMenuSay(Lang.F("{0}: {1:0.0}", cheat, fVal));
-						return ToJson(new Dictionary<string, object>
-						{
-							["success"] = true,
-							["action"] = "toggle",
-							["cheat"] = cheat,
-							["value"] = fVal
-						});
-					}
-					else
-					{
-						float curVal = (float)floatField.GetValue(null);
-						return ToJson(new Dictionary<string, object>
-						{
-							["success"] = true,
-							["action"] = "toggle",
-							["cheat"] = cheat,
-							["value"] = curVal
-						});
-					}
-				}
-
 				FieldInfo field = null;
 				foreach (FieldInfo f in typeof(State).GetFields(BindingFlags.Public | BindingFlags.Static))
 				{
