@@ -225,6 +225,8 @@ internal static class Patches
 			if ((Object)(object)__instance != (Object)null)
 			{
 				__instance.fogHeight = -9999f;
+				__instance.transform.position = new Vector3(0f, -9999f, 0f);
+				Shader.SetGlobalFloat("FogHeight", -9999f);
 			}
 			Character me = Character.localCharacter;
 			if ((Object)(object)me != (Object)null && me.data != null)
@@ -403,6 +405,36 @@ internal static class Patches
 		{
 			__result = 0;
 			return;
+		}
+	}
+
+	public static void LavaRisingStartPostfix(LavaRising __instance)
+	{
+		if ((Object)(object)__instance != (Object)null && State.LavaHeightOffset != 0f)
+		{
+			try
+			{
+				FieldInfo shField = typeof(LavaRising).GetField("startHeight", BindingFlags.Instance | BindingFlags.NonPublic);
+				if (shField != null)
+				{
+					float cur = (float)shField.GetValue(__instance);
+					shField.SetValue(__instance, cur + State.LavaHeightOffset);
+				}
+				if ((Object)(object)__instance.topTransform != (Object)null)
+				{
+					__instance.topTransform.position += Vector3.up * State.LavaHeightOffset;
+				}
+				if ((Object)(object)__instance.heightMinimumTransform != (Object)null)
+				{
+					__instance.heightMinimumTransform.position += Vector3.up * State.LavaHeightOffset;
+				}
+				if ((Object)(object)__instance.lava != (Object)null)
+				{
+					__instance.lava.transform.position += Vector3.up * State.LavaHeightOffset;
+					__instance.lava.position += Vector3.up * State.LavaHeightOffset;
+				}
+			}
+			catch {}
 		}
 	}
 

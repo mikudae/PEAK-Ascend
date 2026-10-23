@@ -745,7 +745,7 @@ internal static class Features
 		PhotonNetwork.Instantiate("0_Items/" + ((Object)item).name, c.Head + Vector3.up * 4f, Quaternion.identity, (byte)0, (object[])null);
 	}
 
-		private static float lastFogHeightOffset;
+	private static float lastFogHeightOffset;
 	private static float lastLavaHeightOffset;
 
 	public static void AdjustFogHeight(float newOffset)
@@ -777,6 +777,31 @@ internal static class Features
 					catch {}
 				}
 			}
+		}
+
+		OrbFogHandler orbFog = Singleton<OrbFogHandler>.Instance;
+		if ((Object)(object)orbFog != (Object)null)
+		{
+			orbFog.currentSize += delta;
+			if (orbFog.currentSize < 10f) orbFog.currentSize = 10f;
+			FogSphere sphere = orbFog.GetComponentInChildren<FogSphere>();
+			if ((Object)(object)sphere != (Object)null)
+			{
+				sphere.currentSize = orbFog.currentSize;
+				sphere.fogPoint += Vector3.up * delta;
+			}
+			try
+			{
+				if (PhotonNetwork.IsMasterClient)
+				{
+					PhotonView pv = orbFog.GetComponent<PhotonView>();
+					if ((Object)(object)pv != (Object)null)
+					{
+						pv.RPC("RPCA_SyncFog", (RpcTarget)0, new object[2] { orbFog.currentSize, orbFog.isMoving });
+					}
+				}
+			}
+			catch {}
 		}
 	}
 
@@ -815,10 +840,31 @@ internal static class Features
 		{
 			for (int i = 0; i < rlavas.Length; i++)
 			{
-				if ((Object)(object)rlavas[i] != (Object)null && (Object)(object)rlavas[i].lava != (Object)null)
+				if ((Object)(object)rlavas[i] != (Object)null)
 				{
-					Vector3 cur = rlavas[i].lava.position;
-					rlavas[i].lava.MovePosition(new Vector3(cur.x, cur.y + delta, cur.z));
+					try
+					{
+						FieldInfo shField = typeof(LavaRising).GetField("startHeight", BindingFlags.Instance | BindingFlags.NonPublic);
+						if (shField != null)
+						{
+							float curSh = (float)shField.GetValue(rlavas[i]);
+							shField.SetValue(rlavas[i], curSh + delta);
+						}
+						if ((Object)(object)rlavas[i].topTransform != (Object)null)
+						{
+							rlavas[i].topTransform.position += Vector3.up * delta;
+						}
+						if ((Object)(object)rlavas[i].heightMinimumTransform != (Object)null)
+						{
+							rlavas[i].heightMinimumTransform.position += Vector3.up * delta;
+						}
+						if ((Object)(object)rlavas[i].lava != (Object)null)
+						{
+							rlavas[i].lava.transform.position += Vector3.up * delta;
+							rlavas[i].lava.position += Vector3.up * delta;
+						}
+					}
+					catch {}
 				}
 			}
 		}

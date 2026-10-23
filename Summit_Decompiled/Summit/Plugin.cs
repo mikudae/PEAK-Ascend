@@ -98,7 +98,6 @@ public class Plugin : BaseUnityPlugin
 		Patch(h, typeof(Item), "get_CarryWeight", null, "CarryWeightPostfix");
 		Patch(h, typeof(OrbFogHandler), "Move", "OrbFogPrefix");
 		Patch(h, typeof(OrbFogHandler), "WaitToMove", "FogPrefix");
-		Patch(h, typeof(OrbFogHandler), "Update", "FogPrefix");
 		Patch(h, typeof(Fog), "Update", "FogUpdatePrefix");
 		Patch(h, typeof(Fog), "Move", "FogMovePrefix");
 		Patch(h, typeof(Fog), "Movement", "FogPrefix");
@@ -120,6 +119,7 @@ public class Plugin : BaseUnityPlugin
 			typeof(bool)
 		});
 		Patch(h, typeof(LavaRising), "Update", "LavaPrefix");
+		Patch(h, typeof(LavaRising), "Start", null, "LavaRisingStartPostfix");
 		Patch(h, typeof(MovingLava), "Update", "MovingLavaUpdatePrefix");
 		Patch(h, typeof(Ascents), "get_isNightCold", null, "NightColdPostfix");
 		Patch(h, typeof(WindChillZone), "Update", "WeatherPrefix");
