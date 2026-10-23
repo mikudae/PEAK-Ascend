@@ -96,10 +96,11 @@ public class Plugin : BaseUnityPlugin
 		Patch(h, typeof(CharacterMovement), "GetMovementForce", null, "MoveForcePostfix");
 		Patch(h, typeof(CharacterMovement), "FixedUpdate", null, "FlyPostfix");
 		Patch(h, typeof(Item), "get_CarryWeight", null, "CarryWeightPostfix");
-		Patch(h, typeof(OrbFogHandler), "Move", "FogPrefix");
+		Patch(h, typeof(OrbFogHandler), "Move", "OrbFogPrefix");
 		Patch(h, typeof(OrbFogHandler), "WaitToMove", "FogPrefix");
 		Patch(h, typeof(OrbFogHandler), "Update", "FogPrefix");
 		Patch(h, typeof(Fog), "Update", "FogUpdatePrefix");
+		Patch(h, typeof(Fog), "Move", "FogMovePrefix");
 		Patch(h, typeof(Fog), "Movement", "FogPrefix");
 		Patch(h, typeof(Fog), "MakePlayerCold", "FogPrefix");
 		Patch(h, typeof(Ascents), "get_fogEnabled", null, "FogEnabledPostfix");
@@ -119,7 +120,7 @@ public class Plugin : BaseUnityPlugin
 			typeof(bool)
 		});
 		Patch(h, typeof(LavaRising), "Update", "LavaPrefix");
-		Patch(h, typeof(MovingLava), "Update", "LavaPrefix");
+		Patch(h, typeof(MovingLava), "Update", "MovingLavaUpdatePrefix");
 		Patch(h, typeof(Ascents), "get_isNightCold", null, "NightColdPostfix");
 		Patch(h, typeof(WindChillZone), "Update", "WeatherPrefix");
 		Patch(h, typeof(WindChillZone), "ApplyStatus", "WeatherPrefix");

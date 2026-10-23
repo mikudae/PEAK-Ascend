@@ -2053,7 +2053,18 @@ public static class DebugBridge
 		{
 			if (!string.IsNullOrEmpty(valStr) && float.TryParse(valStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float fVal))
 			{
-				floatField.SetValue(null, fVal);
+				if (string.Equals(floatField.Name, "FogHeightOffset", StringComparison.OrdinalIgnoreCase))
+				{
+					Features.AdjustFogHeight(fVal);
+				}
+				else if (string.Equals(floatField.Name, "LavaHeightOffset", StringComparison.OrdinalIgnoreCase))
+				{
+					Features.AdjustLavaHeight(fVal);
+				}
+				else
+				{
+					floatField.SetValue(null, fVal);
+				}
 				SafeMenuSay(Lang.F("{0}: {1:0.0}", cheat, fVal));
 				return ToJson(new Dictionary<string, object>
 				{

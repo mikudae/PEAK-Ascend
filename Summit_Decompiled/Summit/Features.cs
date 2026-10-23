@@ -745,6 +745,85 @@ internal static class Features
 		PhotonNetwork.Instantiate("0_Items/" + ((Object)item).name, c.Head + Vector3.up * 4f, Quaternion.identity, (byte)0, (object[])null);
 	}
 
+		private static float lastFogHeightOffset;
+	private static float lastLavaHeightOffset;
+
+	public static void AdjustFogHeight(float newOffset)
+	{
+		float delta = newOffset - lastFogHeightOffset;
+		lastFogHeightOffset = newOffset;
+		State.FogHeightOffset = newOffset;
+		if (Mathf.Abs(delta) < 0.01f) return;
+
+		Fog[] fogs = Object.FindObjectsOfType<Fog>();
+		if (fogs != null)
+		{
+			for (int i = 0; i < fogs.Length; i++)
+			{
+				if ((Object)(object)fogs[i] != (Object)null)
+				{
+					fogs[i].fogHeight += delta;
+					try
+					{
+						if (PhotonNetwork.IsMasterClient)
+						{
+							PhotonView pv = fogs[i].GetComponent<PhotonView>();
+							if ((Object)(object)pv != (Object)null)
+							{
+								pv.RPC("RPCA_SyncFog", (RpcTarget)0, new object[1] { fogs[i].fogHeight });
+							}
+						}
+					}
+					catch {}
+				}
+			}
+		}
+	}
+
+	public static void AdjustLavaHeight(float newOffset)
+	{
+		float delta = newOffset - lastLavaHeightOffset;
+		lastLavaHeightOffset = newOffset;
+		State.LavaHeightOffset = newOffset;
+		if (Mathf.Abs(delta) < 0.01f) return;
+
+		MovingLava[] mlavas = Object.FindObjectsOfType<MovingLava>();
+		if (mlavas != null)
+		{
+			for (int i = 0; i < mlavas.Length; i++)
+			{
+				if ((Object)(object)mlavas[i] != (Object)null)
+				{
+					mlavas[i].transform.position += Vector3.up * delta;
+					try
+					{
+						if (PhotonNetwork.IsMasterClient)
+						{
+							PhotonView pv = mlavas[i].GetComponent<PhotonView>();
+							if ((Object)(object)pv != (Object)null)
+							{
+								pv.RPC("RPCA_SyncLavaHeight", (RpcTarget)0, new object[1] { mlavas[i].transform.position.y });
+							}
+						}
+					}
+					catch {}
+				}
+			}
+		}
+		LavaRising[] rlavas = Object.FindObjectsOfType<LavaRising>();
+		if (rlavas != null)
+		{
+			for (int i = 0; i < rlavas.Length; i++)
+			{
+				if ((Object)(object)rlavas[i] != (Object)null && (Object)(object)rlavas[i].lava != (Object)null)
+				{
+					Vector3 cur = rlavas[i].lava.position;
+					rlavas[i].lava.MovePosition(new Vector3(cur.x, cur.y + delta, cur.z));
+				}
+			}
+		}
+	}
+
 	public static void Upkeep()
 	{
 		Character me = Me;

@@ -18,6 +18,14 @@ internal static class State
 
 	public static bool StopFog;
 
+	public static float FogSpeed = 1f;
+
+	public static float FogHeightOffset;
+
+	public static float LavaSpeed = 1f;
+
+	public static float LavaHeightOffset;
+
 	public static bool EspScouts;
 
 	public static bool EspLuggage;

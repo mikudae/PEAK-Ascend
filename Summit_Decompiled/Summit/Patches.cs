@@ -406,9 +406,56 @@ internal static class Patches
 		}
 	}
 
-	public static bool LavaPrefix()
+	public static bool LavaPrefix(LavaRising __instance)
 	{
-		return !State.StopLava;
+		if (State.StopLava || State.LavaSpeed <= 0f)
+		{
+			return false;
+		}
+		if (State.LavaSpeed != 1f && (Object)(object)__instance != (Object)null)
+		{
+			__instance.timeTraveled += Time.deltaTime * (State.LavaSpeed - 1f);
+		}
+		return true;
+	}
+
+	public static bool MovingLavaUpdatePrefix(MovingLava __instance)
+	{
+		if (State.StopLava || State.LavaSpeed <= 0f)
+		{
+			return false;
+		}
+		if (State.LavaSpeed != 1f && (Object)(object)__instance != (Object)null)
+		{
+			__instance.transform.position += __instance.transform.up * (__instance.speed * (State.LavaSpeed - 1f)) * Time.deltaTime;
+		}
+		return true;
+	}
+
+	public static bool FogMovePrefix(Fog __instance)
+	{
+		if (State.StopFog || State.FogSpeed <= 0f)
+		{
+			return false;
+		}
+		if (State.FogSpeed != 1f && (Object)(object)__instance != (Object)null)
+		{
+			__instance.fogHeight += Time.deltaTime * __instance.fogSpeed * (State.FogSpeed - 1f);
+		}
+		return true;
+	}
+
+	public static bool OrbFogPrefix(OrbFogHandler __instance)
+	{
+		if (State.StopFog || State.FogSpeed <= 0f)
+		{
+			return false;
+		}
+		if (State.FogSpeed != 1f && (Object)(object)__instance != (Object)null)
+		{
+			__instance.currentSize -= __instance.speed * Time.deltaTime * (State.FogSpeed - 1f);
+		}
+		return true;
 	}
 
 	public static void FovPostfix(ref float __result)

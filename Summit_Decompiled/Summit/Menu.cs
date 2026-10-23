@@ -360,7 +360,67 @@ public class Menu : MonoBehaviour
 		Sw("EspHazards", "Hazards", "Bees, scorpions, spiders, zombies, tornados and the other things that hurt, within 150 m.");
 		Card("World", "The mountain", 1);
 		Sw("StopFog", "The fog never comes", "The host's fog is the lobby's fog: this holds it for everyone when you host, and does nothing lasting when you do not.");
+		Put(new Control
+		{
+			Id = "fogSpeed",
+			Label = "Fog rise speed",
+			Hint = "Speed multiplier for rising fog. 0x pauses the fog, 1x is normal climb speed, 2x is double speed.",
+			Min = 0f,
+			Max = 5f,
+			Step = 0.1f,
+			Shown = (float v) => v <= 0f ? "Frozen" : v.ToString("0.0") + "x",
+			Value = () => State.FogSpeed,
+			Move = delegate(float v)
+			{
+				State.FogSpeed = v;
+			}
+		});
+		Put(new Control
+		{
+			Id = "fogHeight",
+			Label = "Fog height level",
+			Hint = "Raise or lower the current fog elevation on the mountain.",
+			Min = -300f,
+			Max = 300f,
+			Step = 10f,
+			Shown = (float v) => (v >= 0f ? "+" : "") + v.ToString("0") + " m",
+			Value = () => State.FogHeightOffset,
+			Move = delegate(float v)
+			{
+				Features.AdjustFogHeight(v);
+			}
+		});
 		Sw("StopLava", "The lava does not rise", "Holds the rising lava where it is. The host's lava is the lobby's lava.");
+		Put(new Control
+		{
+			Id = "lavaSpeed",
+			Label = "Lava rise speed",
+			Hint = "Speed multiplier for rising lava. 0x pauses the lava, 1x is normal speed, 2x is double speed.",
+			Min = 0f,
+			Max = 5f,
+			Step = 0.1f,
+			Shown = (float v) => v <= 0f ? "Frozen" : v.ToString("0.0") + "x",
+			Value = () => State.LavaSpeed,
+			Move = delegate(float v)
+			{
+				State.LavaSpeed = v;
+			}
+		});
+		Put(new Control
+		{
+			Id = "lavaHeight",
+			Label = "Lava height level",
+			Hint = "Raise or lower the current lava elevation on the mountain.",
+			Min = -300f,
+			Max = 300f,
+			Step = 10f,
+			Shown = (float v) => (v >= 0f ? "+" : "") + v.ToString("0") + " m",
+			Value = () => State.LavaHeightOffset,
+			Move = delegate(float v)
+			{
+				Features.AdjustLavaHeight(v);
+			}
+		});
 		Sw("NoHazards", "No hazards", "Switches off every hazard the game lets a run switch off: bees, urchins, scorpions, tornados, thorns and the rest. Switch it on before the run starts: what is already on the mountain may stay. The host decides for the lobby.");
 		Sw("NoWeather", "No rain, wind, storm, heat or cold nights", "The weather stays out of your way. Switch it on before the run starts. The host decides for the lobby.");
 		Put(new Control

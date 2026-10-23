@@ -154,6 +154,10 @@ internal static class Lang
 		t["World"] = new string[2] { "Mundo", "世界" };
 		t["See through the mountain"] = new string[2] { "Ver a través de la montaña", "透视山体" };
 		t["The mountain"] = new string[2] { "La montaña", "山" };
+		t["Fog rise speed"] = new string[2] { "Velocidad de la niebla", "雾气上升速度" };
+		t["Fog height level"] = new string[2] { "Nivel de altura de la niebla", "雾气高度调节" };
+		t["Lava rise speed"] = new string[2] { "Velocidad de la lava", "熔岩上升速度" };
+		t["Lava height level"] = new string[2] { "Nivel de altura de la lava", "熔岩高度调节" };
 		t["Time and route"] = new string[2] { "Hora y ruta", "时间与路线" };
 		t["Camera"] = new string[2] { "Cámara", "镜头" };
 		t["View"] = new string[2] { "Vista", "视角" };
