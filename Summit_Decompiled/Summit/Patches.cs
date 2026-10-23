@@ -101,14 +101,34 @@ internal static class Patches
 
 	private static readonly HashSet<string> Weather = new HashSet<string> { "Hazard_Rain", "Hazard_Wind", "Hazard_Storm", "Hazard_Tornado", "Hazard_Heat", "ColdNight" };
 
-	public static bool AddStatusPrefix(CharacterAfflictions __instance, ref bool __result)
+	public static bool AddStatusPrefix(CharacterAfflictions __instance, CharacterAfflictions.STATUSTYPE statusType, ref bool __result)
 	{
-		if (!State.God || (Object)(object)__instance.character == (Object)null || !__instance.character.IsLocal)
+		if ((Object)(object)__instance.character == (Object)null || !__instance.character.IsLocal)
 		{
 			return true;
 		}
-		__result = false;
-		return false;
+		if (State.God)
+		{
+			__result = false;
+			return false;
+		}
+		if (State.NoWeather && (statusType == CharacterAfflictions.STATUSTYPE.Cold || statusType == CharacterAfflictions.STATUSTYPE.Hot))
+		{
+			__result = false;
+			return false;
+		}
+		if (State.NoHazards && (statusType == CharacterAfflictions.STATUSTYPE.Thorns ||
+								statusType == CharacterAfflictions.STATUSTYPE.Spores ||
+								statusType == CharacterAfflictions.STATUSTYPE.Web ||
+								statusType == CharacterAfflictions.STATUSTYPE.Arrow ||
+								statusType == CharacterAfflictions.STATUSTYPE.Petrify ||
+								statusType == CharacterAfflictions.STATUSTYPE.FlyTrap ||
+								statusType == CharacterAfflictions.STATUSTYPE.Poison))
+		{
+			__result = false;
+			return false;
+		}
+		return true;
 	}
 
 	public static bool FallDamagePrefix(Character ___character)
@@ -196,6 +216,59 @@ internal static class Patches
 	public static bool FogPrefix()
 	{
 		return !State.StopFog;
+	}
+
+	public static bool FogUpdatePrefix(Fog __instance)
+	{
+		if (State.StopFog)
+		{
+			if ((Object)(object)__instance != (Object)null)
+			{
+				__instance.fogHeight = -9999f;
+			}
+			Character me = Character.localCharacter;
+			if ((Object)(object)me != (Object)null && me.data != null)
+			{
+				me.data.isInFog = false;
+			}
+			return false;
+		}
+		return true;
+	}
+
+	public static void FogEnabledPostfix(ref bool __result)
+	{
+		if (State.StopFog)
+		{
+			__result = false;
+		}
+	}
+
+	public static void NightColdPostfix(ref bool __result)
+	{
+		if (State.NoWeather)
+		{
+			__result = false;
+		}
+	}
+
+	public static bool WeatherPrefix()
+	{
+		return !State.NoWeather;
+	}
+
+	public static bool HazardPrefix()
+	{
+		return !State.NoHazards;
+	}
+
+	public static bool ThornPrefix(CharacterAfflictions __instance)
+	{
+		if (State.NoHazards && (Object)(object)__instance.character != (Object)null && __instance.character.IsLocal)
+		{
+			return false;
+		}
+		return true;
 	}
 
 	public static void WindowStatusPostfix(GUIManager __instance)
@@ -307,11 +380,29 @@ internal static class Patches
 		}
 	}
 
-	public static void RunValuePostfix(string key, ref int __result)
+	public static void RunValuePostfix(RunSettings.SETTINGTYPE setting, ref int __result)
 	{
-		if (key != null && __result != 0 && ((State.NoHazards && key.StartsWith("Hazard_")) || (State.NoWeather && Weather.Contains(key))))
+		if (__result == 0) return;
+		string key = setting.ToString();
+		if (State.StopFog && key == "Fog")
 		{
 			__result = 0;
+			return;
+		}
+		if (State.StopLava && (key == "Hazard_TheLavaRises" || key == "Hazard_TheGloomRises"))
+		{
+			__result = 0;
+			return;
+		}
+		if (State.NoWeather && (Weather.Contains(key) || key == "Hazard_Heat" || key == "ColdNight" || key == "Hazard_Rain" || key == "Hazard_Wind" || key == "Hazard_Storm" || key == "Hazard_Tornado"))
+		{
+			__result = 0;
+			return;
+		}
+		if (State.NoHazards && key.StartsWith("Hazard_") && !Weather.Contains(key) && key != "Hazard_TheLavaRises" && key != "Hazard_TheGloomRises")
+		{
+			__result = 0;
+			return;
 		}
 	}
 

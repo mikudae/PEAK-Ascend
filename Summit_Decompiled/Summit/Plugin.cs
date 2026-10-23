@@ -98,6 +98,11 @@ public class Plugin : BaseUnityPlugin
 		Patch(h, typeof(Item), "get_CarryWeight", null, "CarryWeightPostfix");
 		Patch(h, typeof(OrbFogHandler), "Move", "FogPrefix");
 		Patch(h, typeof(OrbFogHandler), "WaitToMove", "FogPrefix");
+		Patch(h, typeof(OrbFogHandler), "Update", "FogPrefix");
+		Patch(h, typeof(Fog), "Update", "FogUpdatePrefix");
+		Patch(h, typeof(Fog), "Movement", "FogPrefix");
+		Patch(h, typeof(Fog), "MakePlayerCold", "FogPrefix");
+		Patch(h, typeof(Ascents), "get_fogEnabled", null, "FogEnabledPostfix");
 		Patch(h, typeof(CustomizationOption), "get_IsLocked", null, "CosmeticLockPostfix");
 		Patch(h, typeof(GUIManager), "UpdateWindowStatus", null, "WindowStatusPostfix");
 		Patch(h, typeof(AchievementManager), "ThrowAchievement", "AchievementPrefix");
@@ -110,10 +115,32 @@ public class Plugin : BaseUnityPlugin
 		Patch(h, typeof(CharacterClimbing), "TryToStartWallClimb", "ReachPrefix");
 		Patch(h, typeof(RunSettings), "GetValue", null, "RunValuePostfix", new Type[2]
 		{
-			typeof(string),
+			typeof(RunSettings.SETTINGTYPE),
 			typeof(bool)
 		});
 		Patch(h, typeof(LavaRising), "Update", "LavaPrefix");
+		Patch(h, typeof(MovingLava), "Update", "LavaPrefix");
+		Patch(h, typeof(Ascents), "get_isNightCold", null, "NightColdPostfix");
+		Patch(h, typeof(WindChillZone), "Update", "WeatherPrefix");
+		Patch(h, typeof(WindChillZone), "ApplyStatus", "WeatherPrefix");
+		Patch(h, typeof(Tornado), "Update", "WeatherPrefix");
+		Patch(h, typeof(TornadoSpawner), "Update", "WeatherPrefix");
+		Patch(h, typeof(CharacterAfflictions), "AddSunHeat", "WeatherPrefix");
+		Patch(h, typeof(CharacterAfflictions), "AddThorn", "ThornPrefix", null, new Type[2] { typeof(Vector3), typeof(int) });
+		Patch(h, typeof(CharacterAfflictions), "AddThorn", "ThornPrefix", null, new Type[3] { typeof(int), typeof(ushort), typeof(bool) });
+		Patch(h, typeof(CharacterAfflictions), "AddThorns", "ThornPrefix", null, new Type[2] { typeof(int), typeof(int) });
+		Patch(h, typeof(CharacterAfflictions), "AddPetrify", "HazardPrefix");
+		Patch(h, typeof(CharacterAfflictions), "AddPoisonOverTime", "HazardPrefix");
+		Patch(h, typeof(CharacterAfflictions), "AddArrow", "HazardPrefix");
+
+		Type beeType = AccessTools.TypeByName("BeeSwarm");
+		if (beeType != null) Patch(h, beeType, "Update", "HazardPrefix");
+		Type scorpionType = AccessTools.TypeByName("Scorpion");
+		if (scorpionType != null) Patch(h, scorpionType, "Update", "HazardPrefix");
+		Type beetleType = AccessTools.TypeByName("Beetle");
+		if (beetleType != null) Patch(h, beetleType, "Update", "HazardPrefix");
+		Type antlionType = AccessTools.TypeByName("Antlion");
+		if (antlionType != null) Patch(h, antlionType, "Update", "HazardPrefix");
 		Patch(h, typeof(MainCameraMovement), "GetFov", null, "FovPostfix");
 		Patch(h, typeof(MainCameraMovement), "CharacterCam", null, "ThirdPersonPostfix");
 		Patch(h, typeof(MainCameraMovement), "LateUpdate", null, "FreeCamPostfix");

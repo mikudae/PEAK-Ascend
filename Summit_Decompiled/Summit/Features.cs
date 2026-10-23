@@ -558,6 +558,18 @@ internal static class Features
 			return;
 		}
 		DayNightManager.SetTimeOfDay(hour);
+		try
+		{
+			if (PhotonNetwork.IsMasterClient)
+			{
+				PhotonView pv = DayNightManager.instance.GetComponent<PhotonView>();
+				if ((Object)(object)pv != (Object)null)
+				{
+					pv.RPC("RPCA_SyncTime", (RpcTarget)0, new object[2] { DayNightManager.instance.dayCount, hour });
+				}
+			}
+		}
+		catch {}
 		Say(PhotonNetwork.IsMasterClient ? Lang.F("It is now {0}", Lang.T(what)) : Lang.F("It is now {0} (until the host's clock overrides it)", Lang.T(what)));
 	}
 
@@ -820,6 +832,62 @@ internal static class Features
 			{
 				((Behaviour)instance.hudCanvas).enabled = true;
 				hudTouched = false;
+			}
+		}
+		if (State.StopFog)
+		{
+			Fog[] fogs = Object.FindObjectsOfType<Fog>();
+			if (fogs != null)
+			{
+				for (int i = 0; i < fogs.Length; i++)
+				{
+					if ((Object)(object)fogs[i] != (Object)null)
+					{
+						fogs[i].fogHeight = -9999f;
+					}
+				}
+			}
+			if ((Object)(object)me != (Object)null && me.data != null)
+			{
+				me.data.isInFog = false;
+			}
+		}
+		if (State.StopLava)
+		{
+			LavaRising[] lavas = Object.FindObjectsOfType<LavaRising>();
+			if (lavas != null)
+			{
+				for (int i = 0; i < lavas.Length; i++)
+				{
+					if ((Object)(object)lavas[i] != (Object)null)
+					{
+						lavas[i].timeTraveled = 0f;
+						lavas[i].secondsWaitedToStart = 0f;
+					}
+				}
+			}
+		}
+		if (State.NoWeather)
+		{
+			if ((Object)(object)me != (Object)null && me.refs != null && (Object)(object)me.refs.afflictions != null)
+			{
+				float heat = me.refs.afflictions.GetCurrentStatus(CharacterAfflictions.STATUSTYPE.Hot);
+				if (heat > 0f) me.refs.afflictions.SubtractStatus(CharacterAfflictions.STATUSTYPE.Hot, heat, false, false);
+			}
+		}
+		if (State.NoHazards)
+		{
+			if ((Object)(object)me != (Object)null && me.refs != null && (Object)(object)me.refs.afflictions != null)
+			{
+				me.refs.afflictions.RemoveAllThorns();
+				float thorns = me.refs.afflictions.GetCurrentStatus(CharacterAfflictions.STATUSTYPE.Thorns);
+				if (thorns > 0f) me.refs.afflictions.SubtractStatus(CharacterAfflictions.STATUSTYPE.Thorns, thorns, false, false);
+				float web = me.refs.afflictions.GetCurrentStatus(CharacterAfflictions.STATUSTYPE.Web);
+				if (web > 0f) me.refs.afflictions.SubtractStatus(CharacterAfflictions.STATUSTYPE.Web, web, false, false);
+				float spores = me.refs.afflictions.GetCurrentStatus(CharacterAfflictions.STATUSTYPE.Spores);
+				if (spores > 0f) me.refs.afflictions.SubtractStatus(CharacterAfflictions.STATUSTYPE.Spores, spores, false, false);
+				float poison = me.refs.afflictions.GetCurrentStatus(CharacterAfflictions.STATUSTYPE.Poison);
+				if (poison > 0f) me.refs.afflictions.SubtractStatus(CharacterAfflictions.STATUSTYPE.Poison, poison, false, false);
 			}
 		}
 		if (State.EspCampfires || State.EspStatues || State.EspHazards)
